@@ -52,8 +52,12 @@ export function describeGeminiError(err: any): string {
     return "GEMINI_API_KEY không hợp lệ. Kiểm tra lại key đã dán trên Vercel.";
   }
   if (status === 404 || /is not found for API version|models\/.* not found/i.test(msg)) {
-    const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-    return `API key không dùng được model "${model}". Đặt biến GEMINI_MODEL trên Vercel sang model khác, ví dụ gemini-2.5-flash.`;
+    // App tự dò model thay thế, nên tới được đây nghĩa là không còn model nào
+    // dùng được, hoặc người dùng đã tự ghim GEMINI_MODEL vào một tên sai.
+    const ghim = process.env.GEMINI_MODEL?.trim();
+    return ghim
+      ? `API key không dùng được model "${ghim}" mà anh đã ghim trong biến GEMINI_MODEL. Xóa biến này đi để app tự chọn model.`
+      : "API key không dùng được model nào phù hợp. Kiểm tra lại key trên aistudio.google.com.";
   }
   if (status === 403) return "API key bị từ chối quyền truy cập Gemini. Kiểm tra lại key và project trên Google.";
   if (status === 429) return "Đã vượt hạn mức gọi Gemini. Chờ một lát rồi thử lại.";

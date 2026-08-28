@@ -32,9 +32,12 @@ export async function GET() {
     CRON_SECRET: co("CRON_SECRET")
   };
 
+  const { modelDangDung } = await import("@/lib/gemini");
   const cauHinh = {
     NEXTAUTH_URL: process.env.NEXTAUTH_URL ?? null,
-    GEMINI_MODEL: process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash (mặc định)",
+    GEMINI_MODEL: process.env.GEMINI_MODEL?.trim()
+      ? `${process.env.GEMINI_MODEL.trim()} (ghim thủ công)`
+      : `${modelDangDung()} (tự chọn)`,
     // Biết chắc bản deploy đang chạy là commit nào, khỏi đoán code đã lên chưa
     commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "không rõ"
   };
@@ -66,17 +69,13 @@ export async function GET() {
       gemini = { hoatDong: true };
     } catch (err) {
       gemini = { hoatDong: false, loi: describeGeminiError(err) };
-      // Model hiện tại không chạy thì hỏi luôn Google xem key này dùng được model nào,
-      // để khỏi phải đoán mò tên model qua nhiều lần deploy.
+      // Liệt kê model để biết app còn lựa chọn nào. App tự chuyển model khi cần,
+      // nên chỉ cần xem chứ không phải tự đặt tên vào cấu hình.
       try {
-        const { listAvailableModels } = await import("@/lib/gemini");
+        const { listAvailableModels, chonModelTot } = await import("@/lib/gemini");
         const ds = await listAvailableModels();
         gemini.modelDungDuoc = ds.length ? ds : "API key không thấy model nào";
-        gemini.goiY = ds.length
-          ? `Đặt biến GEMINI_MODEL trên Vercel thành một tên trong danh sách trên, ví dụ "${
-              ds.find((m) => /2\.5-flash$|2\.0-flash$/.test(m)) ?? ds[0]
-            }", rồi Redeploy.`
-          : undefined;
+        gemini.modelAppSeChon = ds.length ? chonModelTot(ds) : null;
       } catch (e2) {
         gemini.khongLietKeDuocModel = describeGeminiError(e2);
       }

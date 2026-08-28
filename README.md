@@ -68,7 +68,7 @@ git push -u origin main
 
    **Bắt buộc phải điền đủ**, đặc biệt là hai khóa VAPID: thiếu chúng thì bản build trên Vercel sẽ hỏng, không phải chỉ mất tính năng thông báo. Thiếu `OWNER_EMAIL` thì app khóa toàn bộ đăng nhập (chặn mặc định cho an toàn).
 
-   `GEMINI_MODEL` là tùy chọn, bỏ trống sẽ dùng `gemini-2.0-flash`. Đừng đặt về `gemini-1.5-flash`, Google đã ngừng cấp model đó cho API key tạo mới.
+   **Đừng tạo biến `GEMINI_MODEL`.** App tự chọn model dùng được: mặc định dùng bí danh `gemini-flash-latest` (Google tự trỏ sang bản mới nhất), và nếu bí danh đó hỏng thì tự hỏi Google xem key còn model nào rồi chuyển sang, không cần deploy lại. Ghim một tên phiên bản cụ thể là hỏng app sau vài tháng, vì Google liên tục ngừng cấp model cũ. Chỉ điền biến này khi cần ép dùng đúng một model nào đó.
 4. Bấm **Deploy**.
 5. Sau khi có domain thật (vd `hpprio-xyz.vercel.app`):
    - Quay lại Google Cloud Console, thêm redirect URI: `https://hpprio-xyz.vercel.app/api/auth/callback/google`

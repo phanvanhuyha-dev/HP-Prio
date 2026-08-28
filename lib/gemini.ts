@@ -1,23 +1,79 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { normalizeDeadline } from "./db";
 
-// gemini-1.5-flash đã bị Google ngừng cấp cho các API key tạo mới, gọi vào sẽ lỗi 404.
-// Đặt qua biến môi trường để sau này đổi model mà không phải sửa code.
-const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+// KHÔNG ghim tên model theo phiên bản. Google liên tục ngừng cấp model cũ cho
+// API key mới: dự án này đã chết hai lần vì gemini-1.5-flash rồi gemini-2.0-flash.
+// Mặc định dùng bí danh tự cập nhật của Google, và tự dò lại khi bí danh hỏng.
+const BI_DANH_MAC_DINH = "gemini-flash-latest";
+
+// Model chuyên dụng, không sinh được JSON theo yêu cầu của app.
+const LOAI_TRU =
+  /(preview|tts|image|robotics|computer-use|transcribe|omni|lyria|nano-banana|deep-research|gemma|embedding|customtools|vision|clip)/i;
+
+// Chọn model tốt nhất từ danh sách mà API key thực sự dùng được.
+export function chonModelTot(models: string[]): string | null {
+  const ungVien = models.filter((m) => !LOAI_TRU.test(m));
+  if (ungVien.length === 0) return null;
+
+  // Ưu tiên bí danh "...-latest": Google tự trỏ sang bản mới, không bao giờ lỗi thời.
+  const biDanhFlash = ungVien.find((m) => /^gemini-flash-latest$/.test(m));
+  if (biDanhFlash) return biDanhFlash;
+  const biDanhKhac = ungVien.find((m) => /-latest$/.test(m) && /flash/.test(m));
+  if (biDanhKhac) return biDanhKhac;
+
+  // Không có bí danh thì lấy bản flash thường có số phiên bản cao nhất.
+  const soPhienBan = (m: string) => Number(m.match(/gemini-(\d+(?:\.\d+)?)/)?.[1] ?? 0);
+  const flash = ungVien
+    .filter((m) => /flash/.test(m) && !/lite/.test(m))
+    .sort((a, b) => soPhienBan(b) - soPhienBan(a));
+  if (flash.length) return flash[0];
+
+  const batKyGemini = ungVien.filter((m) => /^gemini-/.test(m)).sort((a, b) => soPhienBan(b) - soPhienBan(a));
+  return batKyGemini[0] ?? ungVien[0];
+}
 
 // Khởi tạo trễ: không tạo client ở cấp module để việc thiếu GEMINI_API_KEY
 // không làm hỏng bước build của Next.js.
-let cachedModel: ReturnType<GoogleGenerativeAI["getGenerativeModel"]> | null = null;
+let tenModelDangDung: string | null = null;
 
-function getModel() {
-  if (cachedModel) return cachedModel;
+export function modelDangDung() {
+  return process.env.GEMINI_MODEL?.trim() || tenModelDangDung || BI_DANH_MAC_DINH;
+}
+
+function taoModel(ten: string) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("Thiếu GEMINI_API_KEY");
-  cachedModel = new GoogleGenerativeAI(apiKey).getGenerativeModel({
-    model: MODEL_NAME,
+  return new GoogleGenerativeAI(apiKey).getGenerativeModel({
+    model: ten,
     generationConfig: { responseMimeType: "application/json" }
   });
-  return cachedModel;
+}
+
+function laLoiKhongCoModel(err: any) {
+  const msg = String(err?.message ?? err);
+  return err?.status === 404 || /is not found for API version|models\/.* not found/i.test(msg);
+}
+
+// Gọi Gemini, nếu model hiện tại không dùng được thì tự hỏi Google xem còn
+// model nào rồi gọi lại. Người dùng không phải sửa cấu hình mỗi lần Google
+// đổi danh mục model.
+async function sinhJson(prompt: string): Promise<any> {
+  try {
+    const res = await taoModel(modelDangDung()).generateContent(prompt);
+    return parseJsonResponse(res.response.text());
+  } catch (err) {
+    // GEMINI_MODEL do người dùng chỉ định thì tôn trọng, không tự đổi.
+    if (!laLoiKhongCoModel(err) || process.env.GEMINI_MODEL?.trim()) throw err;
+
+    const ds = await listAvailableModels();
+    const chon = chonModelTot(ds);
+    if (!chon) throw err;
+
+    console.warn(`[HPPrio] Model "${modelDangDung()}" không dùng được, chuyển sang "${chon}".`);
+    tenModelDangDung = chon;
+    const res = await taoModel(chon).generateContent(prompt);
+    return parseJsonResponse(res.response.text());
+  }
 }
 
 // Hỏi thẳng Google xem API key này dùng được những model nào.
@@ -108,8 +164,7 @@ export async function parseTaskInput(rawInput: string): Promise<ParsedTask> {
     SYSTEM_PROMPT.replace("{{TODAY}}", iso).replace("{{WEEKDAY}}", weekday) +
     `\n\nCâu nhập của người dùng: "${rawInput}"`;
 
-  const result = await getModel().generateContent(prompt);
-  const parsed = parseJsonResponse(result.response.text());
+  const parsed = await sinhJson(prompt);
 
   const title = typeof parsed.title === "string" && parsed.title.trim()
     ? parsed.title.trim().slice(0, 200)
@@ -157,8 +212,7 @@ export async function analyzeTasks(tasks: unknown[]): Promise<TaskAnalysis> {
     () => JSON.stringify(tasks, null, 2)
   );
 
-  const result = await getModel().generateContent(prompt);
-  const parsed = parseJsonResponse(result.response.text());
+  const parsed = await sinhJson(prompt);
 
   return {
     summary: typeof parsed.summary === "string" ? parsed.summary : "",
