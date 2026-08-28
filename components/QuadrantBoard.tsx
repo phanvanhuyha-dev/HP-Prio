@@ -14,11 +14,46 @@ export type Task = {
 
 type ReclassifyPatch = { userUrgent?: boolean; userImportant?: boolean; notes?: string | null };
 
+// Dùng thống nhất một cặp từ "khẩn cấp" và "quan trọng" đúng như hai nút bấm
+// trên thẻ. Trước đây chỗ ghi "gấp" chỗ ghi "khẩn" khiến người đọc tưởng là
+// hai tiêu chí khác nhau.
 const QUADRANTS = [
-  { key: "do", label: "Làm ngay", sub: "khẩn cấp + quan trọng", color: "var(--coral)", urgent: true, important: true },
-  { key: "schedule", label: "Lên lịch", sub: "quan trọng, chưa gấp", color: "var(--teal)", urgent: false, important: true },
-  { key: "delegate", label: "Giao bớt", sub: "gấp, không cốt lõi", color: "var(--amber)", urgent: true, important: false },
-  { key: "drop", label: "Cân nhắc bỏ", sub: "không gấp, không quan trọng", color: "var(--slate)", urgent: false, important: false }
+  {
+    key: "do",
+    label: "Làm ngay",
+    sub: "khẩn cấp + quan trọng",
+    goiY: "Tự tay làm, ưu tiên trước hết",
+    color: "var(--coral)",
+    urgent: true,
+    important: true
+  },
+  {
+    key: "schedule",
+    label: "Lên lịch",
+    sub: "quan trọng, chưa khẩn cấp",
+    goiY: "Đặt lịch cụ thể kẻo bị việc gấp lấn át",
+    color: "var(--teal)",
+    urgent: false,
+    important: true
+  },
+  {
+    key: "delegate",
+    label: "Giao bớt",
+    sub: "khẩn cấp, không quan trọng",
+    goiY: "Giao cho người khác hoặc rút gọn cách làm",
+    color: "var(--amber)",
+    urgent: true,
+    important: false
+  },
+  {
+    key: "drop",
+    label: "Cân nhắc bỏ",
+    sub: "không khẩn cấp, không quan trọng",
+    goiY: "Bỏ hẳn, hoặc hẹn xem lại vào cuối tháng",
+    color: "var(--slate)",
+    urgent: false,
+    important: false
+  }
 ] as const;
 
 export default function QuadrantBoard({
@@ -42,7 +77,9 @@ export default function QuadrantBoard({
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+    // Lớp .quadrants xuống 1 cột khi màn hẹp. Ép 2 cột ở 390px làm tiêu đề
+    // việc gãy 4 dòng và nút Xóa dính sát nút Ghi chú, rất dễ bấm nhầm.
+    <div className="quadrants">
       {QUADRANTS.map((q) => {
         const items = tasks.filter((t) => t.user_urgent === q.urgent && t.user_important === q.important);
         return (
@@ -61,8 +98,12 @@ export default function QuadrantBoard({
               <div style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 600, color: "var(--cream)" }}>
                 {q.label}
               </div>
-              <div className="mono" style={{ fontSize: 10, color: "var(--slate)", textTransform: "uppercase" }}>
+              <div className="mono" style={{ fontSize: 11, color: "var(--slate)", textTransform: "uppercase" }}>
                 {q.sub} · {items.length}
+              </div>
+              {/* Ô nào cũng cần nói rõ nên làm gì với việc nằm trong đó */}
+              <div style={{ fontSize: 11.5, color: "var(--slate)", marginTop: 3, lineHeight: 1.35 }}>
+                {q.goiY}
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -122,11 +163,14 @@ function TaskRow({
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
         <span style={{ fontSize: 13.5, color: "var(--cream)", lineHeight: 1.3 }}>{task.title}</span>
+        {/* class "tap" mở vùng chạm ra 44x44px theo WCAG 2.5.5, icon vẫn nhỏ.
+            Trước đây vùng bấm chỉ 12x21px, rất dễ bấm trượt trên điện thoại. */}
         <button
           onClick={() => onDone(task.id)}
           title="Đánh dấu xong"
           aria-label={`Đánh dấu xong: ${task.title}`}
-          style={{ background: "none", border: "none", color: "var(--teal)", fontSize: 16, flexShrink: 0, padding: 0 }}
+          className="tap"
+          style={{ background: "none", border: "none", color: "var(--teal)", fontSize: 18, flexShrink: 0, padding: 0, margin: -10 }}
         >
           ✓
         </button>
@@ -207,8 +251,12 @@ function TaskRow({
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span className="mono" style={{ fontSize: 10, color: "var(--slate)" }}>
-            {task.category === "work" ? "🏢 NHG" : "🏠 Cá nhân"}
+          <span
+            className="mono"
+            style={{ fontSize: 11, color: "var(--slate)" }}
+            title={task.category === "work" ? "Việc cơ quan" : "Việc cá nhân"}
+          >
+            {task.category === "work" ? "🏢 Cơ quan" : "🏠 Cá nhân"}
           </span>
           {!dangSua &&
             (task.notes ? (
@@ -238,7 +286,7 @@ function TaskRow({
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {task.deadline && (
-            <span className="mono" style={{ fontSize: 10, color: overdue ? "var(--coral)" : "var(--slate)" }}>
+            <span className="mono" style={{ fontSize: 11, color: overdue ? "var(--coral)" : "var(--slate)" }}>
               {overdue ? "Quá hạn " : ""}
               {new Date(task.deadline).toLocaleDateString("vi-VN")}
             </span>
@@ -247,7 +295,8 @@ function TaskRow({
             onClick={confirmDelete}
             title="Xóa"
             aria-label={`Xóa: ${task.title}`}
-            style={{ background: "none", border: "none", color: "var(--slate)", fontSize: 12, padding: 0 }}
+            className="tap"
+            style={{ background: "none", border: "none", color: "var(--slate)", fontSize: 14, padding: 0, margin: -10 }}
           >
             ✕
           </button>
@@ -261,8 +310,9 @@ const nutChuThich: React.CSSProperties = {
   background: "none",
   border: "none",
   color: "var(--slate)",
-  fontSize: 10,
-  padding: 0,
+  fontSize: 11.5,
+  padding: "6px 2px",
+  minHeight: 32,
   textDecoration: "underline",
   textUnderlineOffset: 2
 };
@@ -297,11 +347,12 @@ function MiniToggle({
         border: `1px solid ${active ? color : "var(--line)"}`,
         borderRadius: 999,
         padding: "2px 8px",
-        fontSize: 9.5,
-        letterSpacing: "0.04em",
+        fontSize: 11,
+        letterSpacing: "0.03em",
         textTransform: "uppercase",
+        minHeight: 30,
         color: active ? "var(--navy)" : "var(--slate)",
-        fontWeight: active ? 700 : 400
+        fontWeight: active ? 700 : 500
       }}
     >
       {label}

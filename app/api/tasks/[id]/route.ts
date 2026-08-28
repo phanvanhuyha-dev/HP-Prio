@@ -9,7 +9,7 @@ import {
   isValidStatus,
   isValidUuid
 } from "@/lib/db";
-import { describeDbError } from "@/lib/diagnostics";
+import { describeDbError, loiJson } from "@/lib/diagnostics";
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -73,7 +73,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ task });
   } catch (err) {
     console.error("Update task error:", err);
-    return NextResponse.json({ error: describeDbError(err) }, { status: 500 });
+    return loiJson(describeDbError(err), "tasks");
   }
 }
 
@@ -92,6 +92,6 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Delete task error:", err);
-    return NextResponse.json({ error: describeDbError(err) }, { status: 500 });
+    return loiJson(describeDbError(err), "tasks");
   }
 }

@@ -5,13 +5,16 @@
   --navy-2: #16263A;
   --cream: #F7F4EE;
   --amber: #E8A33D;
-  --teal: #3F7268;
-  --coral: #D9634B;
-  --slate: #8B95A1;
-  --line: rgba(247, 244, 238, 0.12);
-  /* Nền ô nhập, dạng đục thay vì trong suốt. Thẻ <select> cần màu đục vì một số
-     trình duyệt lấy chính màu nền của select để vẽ khung danh sách xổ xuống;
-     nếu để trong suốt thì khung đó rơi về màu trắng mặc định. */
+
+  /* Ba màu dưới đã được làm sáng để đạt WCAG AA 4.5:1 trên cả ba nền
+     (--navy, --navy-2, --field). Giá trị cũ #3F7268 / #D9634B chỉ đạt
+     2.78:1 và 4.25:1, chữ nhỏ gần như không đọc được.
+     Sắc độ giữ nguyên, chỉ tăng độ sáng, nên tông thiết kế không đổi. */
+  --teal: #5AA394;
+  --coral: #DE7964;
+  --slate: #8C96A2;
+
+  --line: rgba(247, 244, 238, 0.14);
   --field: #1F2F42;
 
   --font-display: 'Fraunces', serif;
@@ -42,6 +45,14 @@ button {
   cursor: pointer;
 }
 
+/* Trình duyệt mặc định vẽ placeholder mờ đi (khoảng 54% độ mờ), kéo tương phản
+   xuống ~3.3:1 dù màu chữ đã đạt chuẩn. Đặt màu tường minh để giành lại. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--slate);
+  opacity: 1;
+}
+
 /* Danh sách xổ xuống của <select> được trình duyệt vẽ ở tầng riêng, KHÔNG nằm
    trong thẻ cha nên không thừa hưởng nền tối. Không đặt màu ở đây thì chữ màu
    kem rơi xuống nền trắng mặc định và gần như không đọc được.
@@ -53,11 +64,10 @@ select option {
   color: var(--cream);
 }
 
-/* Trên nền tối, dòng đang được chọn cần chữ sáng rõ. */
 select option:checked,
 select option:hover {
   background-color: var(--teal);
-  color: var(--cream);
+  color: var(--navy);
 }
 
 :focus-visible {
@@ -65,8 +75,57 @@ select option:hover {
   outline-offset: 2px;
 }
 
+/* Vùng bấm tối thiểu 44x44px theo khuyến nghị WCAG 2.5.5. Icon vẫn nhỏ như
+   thiết kế, phần đệm trong suốt mở rộng vùng chạm ra xung quanh. */
+.tap {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Chỉ dành cho trình đọc màn hình, không chiếm chỗ trên giao diện. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Ma trận 4 ô: 1 cột trên màn hẹp, 2 cột từ 560px trở lên. Ép 2 cột ở 390px
+   làm tiêu đề việc gãy 4 dòng và các nút nhỏ dính sát nhau. */
+.quadrants {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 560px) {
+  .quadrants { grid-template-columns: 1fr 1fr; }
+}
+
+@keyframes quay { to { transform: rotate(360deg); } }
+
+.spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: quay 0.7s linear infinite;
+  vertical-align: -2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
+  .spinner { animation: none !important; border-right-color: currentColor; opacity: 0.5; }
 }
 
 .mono { font-family: var(--font-mono); letter-spacing: 0.02em; }

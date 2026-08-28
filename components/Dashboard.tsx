@@ -10,6 +10,13 @@ export default function Dashboard({ userName }: { userName: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [daLuu, setDaLuu] = useState<string | null>(null);
+
+  function handleSaved(tieuDe: string) {
+    setDaLuu(tieuDe);
+    setTimeout(() => setDaLuu(null), 4000);
+    loadTasks();
+  }
 
   const loadTasks = useCallback(async () => {
     try {
@@ -102,10 +109,12 @@ export default function Dashboard({ userName }: { userName: string }) {
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px 60px" }}>
+    // 720px cố định để trống 44% màn hình ở 1280px và làm tiêu đề việc gãy nhiều
+    // dòng. Cho khung rộng tới 1040px trên màn lớn, mobile vẫn giữ nguyên.
+    <main style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 16px 60px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 22 }}>
         <div>
-          <div className="mono" style={{ fontSize: 11, color: "var(--teal)", letterSpacing: "0.12em" }}>
+          <div className="mono" style={{ fontSize: 11.5, color: "var(--teal)", letterSpacing: "0.12em" }}>
             HPPRIO
           </div>
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: 24, margin: "2px 0 0", color: "var(--cream)" }}>
@@ -114,7 +123,14 @@ export default function Dashboard({ userName }: { userName: string }) {
         </div>
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
-          style={{ background: "none", border: "none", color: "var(--slate)", fontSize: 12 }}
+          style={{
+            background: "none",
+            border: "none",
+            color: "var(--slate)",
+            fontSize: 13,
+            minHeight: 44,
+            padding: "0 4px"
+          }}
         >
           Đăng xuất
         </button>
@@ -124,7 +140,27 @@ export default function Dashboard({ userName }: { userName: string }) {
         <PushSetup />
       </div>
 
-      <TaskInput onSaved={loadTasks} />
+      <TaskInput onSaved={handleSaved} />
+
+      {/* Trước đây lưu xong không có xác nhận nào, người dùng phải tự dò trong
+          ma trận xem việc đã vào chưa. */}
+      {daLuu && (
+        <p
+          role="status"
+          style={{
+            color: "var(--teal)",
+            fontSize: 13,
+            marginTop: 12,
+            marginBottom: 0,
+            background: "rgba(90, 163, 148, 0.12)",
+            border: "1px solid var(--teal)",
+            borderRadius: 8,
+            padding: "8px 12px"
+          }}
+        >
+          ✓ Đã lưu “{daLuu}”
+        </p>
+      )}
 
       {error && (
         <p

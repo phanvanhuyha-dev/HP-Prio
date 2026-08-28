@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { parseTaskInput } from "@/lib/gemini";
-import { describeGeminiError } from "@/lib/diagnostics";
+import { describeGeminiError, loiJson } from "@/lib/diagnostics";
+
+// Gemini có lúc mất 30-50s. Mặc định của Vercel là 10s, không đặt thì request
+// bị cắt giữa chừng và người dùng nhận lỗi khó hiểu.
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -30,6 +34,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ parsed });
   } catch (err: any) {
     console.error("Gemini parse error:", err);
-    return NextResponse.json({ error: describeGeminiError(err) }, { status: 500 });
+    return loiJson(describeGeminiError(err), "parse");
   }
 }

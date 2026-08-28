@@ -44,13 +44,23 @@ export default function AnalysisPanel() {
           border: "1px solid var(--teal)",
           color: "var(--teal)",
           borderRadius: 10,
-          padding: "10px 18px",
-          fontSize: 13,
-          fontWeight: 600
+          padding: "11px 18px",
+          fontSize: 13.5,
+          fontWeight: 600,
+          minHeight: 44,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8
         }}
       >
+        {loading && <span className="spinner" aria-hidden="true" />}
         {loading ? "Đang phân tích…" : "📊 Phân tích & khuyến nghị"}
       </button>
+
+      {/* Trình đọc màn hình cần được báo trạng thái, không chỉ đổi chữ trên nút */}
+      <p aria-live="polite" className="sr-only">
+        {loading ? "Đang phân tích danh sách công việc" : analysis ? "Đã có kết quả phân tích" : ""}
+      </p>
 
       {error && (
         <p role="alert" style={{ color: "var(--coral)", fontSize: 13, marginTop: 12 }}>
@@ -72,7 +82,7 @@ export default function AnalysisPanel() {
 
           {analysis.recommendations?.length > 0 && (
             <>
-              <div className="mono" style={{ fontSize: 11, color: "var(--teal)", marginTop: 14, textTransform: "uppercase" }}>
+              <div className="mono" style={{ fontSize: 11.5, color: "var(--teal)", marginTop: 14, textTransform: "uppercase" }}>
                 Khuyến nghị
               </div>
               <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>

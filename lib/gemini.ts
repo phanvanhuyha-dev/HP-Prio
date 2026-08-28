@@ -137,7 +137,9 @@ const SYSTEM_PROMPT = `Bạn là trợ lý phân tích công việc cho một Tr
 Nhiệm vụ: đọc câu mô tả công việc (tiếng Việt, có thể là giọng nói được chuyển thành text, văn phong tự nhiên/không đầy đủ),
 và trả về JSON với các trường:
 
-- "title": tiêu đề ngắn gọn, rõ ràng (dưới 80 ký tự)
+- "title": tiêu đề ngắn gọn, rõ ràng (dưới 80 ký tự).
+  GIỮ NGUYÊN các tiền tố, mã, thẻ mà người dùng cố ý gõ, ví dụ "[TEST]", "[GẤP]", "#DA01", "KPI:".
+  Đó là quy ước riêng của họ, tự ý bỏ đi là làm mất thông tin.
 - "category": "work" nếu liên quan công việc/tổ chức, "personal" nếu là việc cá nhân/gia đình. Nếu không rõ, suy luận theo ngữ cảnh hợp lý nhất.
 - "deadline": ngày giờ dạng ISO 8601 kèm múi giờ (vd "2026-09-05T17:00:00+07:00") NẾU người dùng nói rõ hoặc gần như chắc chắn (vd "5h chiều mai", "thứ 6 tuần này", "trước 15/9").
   NẾU không đủ dữ kiện để xác định một ngày cụ thể (vd chỉ nói "tuần sau", "sớm", "khi nào rảnh" mà không có mốc rõ), trả về null. TUYỆT ĐỐI KHÔNG đoán bừa một ngày.
@@ -192,6 +194,8 @@ Hãy phân tích và trả về JSON gồm:
 - "risks": mảng 0-3 rủi ro/cảnh báo nếu có (vd quá tải, nhiều việc quan trọng dồn cùng ngày, việc quan trọng bị bỏ quên vì không khẩn cấp)
 
 Chỉ trả JSON, không thêm chữ nào khác. Văn phong tiếng Việt, ngắn gọn, không sáo rỗng.
+XƯNG HÔ: gọi người dùng là "anh", tuyệt đối không dùng "bạn". Toàn bộ giao diện đang xưng "anh",
+lệch xưng hô ở đây làm phần khuyến nghị đọc như của một hệ thống khác.
 
 Danh sách công việc:
 {{TASKS}}`;

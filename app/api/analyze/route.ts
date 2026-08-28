@@ -3,7 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { listTasks } from "@/lib/db";
 import { analyzeTasks } from "@/lib/gemini";
-import { describeDbError, describeGeminiError } from "@/lib/diagnostics";
+import { describeDbError, describeGeminiError, loiJson } from "@/lib/diagnostics";
+
+// Xem chú thích ở /api/parse: Gemini có lúc mất 30-50s.
+export const maxDuration = 60;
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -16,7 +19,7 @@ export async function GET() {
     tasks = await listTasks(session.user.email, "open");
   } catch (err) {
     console.error("Analyze: list tasks error:", err);
-    return NextResponse.json({ error: describeDbError(err) }, { status: 500 });
+    return loiJson(describeDbError(err), "analyze");
   }
 
   if (tasks.length === 0) {
@@ -40,6 +43,6 @@ export async function GET() {
     return NextResponse.json(analysis);
   } catch (err) {
     console.error("Gemini analyze error:", err);
-    return NextResponse.json({ error: describeGeminiError(err) }, { status: 500 });
+    return loiJson(describeGeminiError(err), "analyze");
   }
 }
