@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { listTasks, createTask, isValidCategory, isValidStatus, normalizeDeadline } from "@/lib/db";
+import { describeDbError } from "@/lib/diagnostics";
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -20,7 +21,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ tasks });
   } catch (err) {
     console.error("List tasks error:", err);
-    return NextResponse.json({ error: "Không tải được danh sách công việc" }, { status: 500 });
+    return NextResponse.json({ error: describeDbError(err) }, { status: 500 });
   }
 }
 
@@ -70,6 +71,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ task });
   } catch (err) {
     console.error("Create task error:", err);
-    return NextResponse.json({ error: "Không lưu được công việc" }, { status: 500 });
+    return NextResponse.json({ error: describeDbError(err) }, { status: 500 });
   }
 }

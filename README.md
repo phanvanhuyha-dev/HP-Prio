@@ -101,7 +101,19 @@ Nếu muốn nhắc sát giờ hơn (vd mỗi giờ, `0 * * * *`), phải nâng 
 
 ---
 
-## 7. Lỗi hay gặp
+## 7. Kiểm tra cấu hình khi có lỗi
+
+Đăng nhập vào app rồi mở đường dẫn `/api/health` trên domain của anh:
+
+```
+https://<domain>/api/health
+```
+
+Trang này liệt kê một lần cho biết: biến môi trường nào còn thiếu, database đã kết nối và đã tạo bảng chưa, Gemini gọi được chưa. Trường `sanSang: true` nghĩa là mọi thứ đã đủ.
+
+Trang chỉ mở cho tài khoản đã đăng nhập và **không bao giờ hiện giá trị của biến bí mật**, chỉ hiện có hay không.
+
+## 8. Lỗi hay gặp
 
 ### Build báo `TypeError: Invalid URL` khi prerender `/`, `/login`, `/_not-found`
 

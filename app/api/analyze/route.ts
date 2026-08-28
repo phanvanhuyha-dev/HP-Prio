@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { listTasks } from "@/lib/db";
 import { analyzeTasks } from "@/lib/gemini";
+import { describeDbError, describeGeminiError } from "@/lib/diagnostics";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -15,7 +16,7 @@ export async function GET() {
     tasks = await listTasks(session.user.email, "open");
   } catch (err) {
     console.error("Analyze: list tasks error:", err);
-    return NextResponse.json({ error: "Không đọc được danh sách công việc" }, { status: 500 });
+    return NextResponse.json({ error: describeDbError(err) }, { status: 500 });
   }
 
   if (tasks.length === 0) {
@@ -39,9 +40,6 @@ export async function GET() {
     return NextResponse.json(analysis);
   } catch (err) {
     console.error("Gemini analyze error:", err);
-    return NextResponse.json(
-      { error: "Không phân tích được lúc này, thử lại sau." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: describeGeminiError(err) }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { parseTaskInput } from "@/lib/gemini";
+import { describeGeminiError } from "@/lib/diagnostics";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -29,9 +30,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ parsed });
   } catch (err: any) {
     console.error("Gemini parse error:", err);
-    return NextResponse.json(
-      { error: "Không phân tích được câu nhập. Anh có thể nhập tay các trường bên dưới." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: describeGeminiError(err) }, { status: 500 });
   }
 }
