@@ -20,6 +20,27 @@ function getModel() {
   return cachedModel;
 }
 
+// Hỏi thẳng Google xem API key này dùng được những model nào.
+// Đoán mò tên model tốn nhiều vòng thử sai hơn là hỏi một câu.
+export async function listAvailableModels(): Promise<string[]> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("Thiếu GEMINI_API_KEY");
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${encodeURIComponent(apiKey)}`
+  );
+  if (!res.ok) {
+    throw Object.assign(new Error(`ListModels HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`), {
+      status: res.status
+    });
+  }
+
+  const data = await res.json();
+  return (data.models ?? [])
+    .filter((m: any) => (m.supportedGenerationMethods ?? []).includes("generateContent"))
+    .map((m: any) => String(m.name).replace(/^models\//, ""));
+}
+
 export type ParsedTask = {
   title: string;
   category: "work" | "personal";

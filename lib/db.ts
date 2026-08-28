@@ -215,3 +215,14 @@ export async function getPushSubscriptions(userEmail: string) {
 export async function deletePushSubscription(endpoint: string) {
   await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
 }
+
+// Dùng cho /api/health. Đặt ở đây (thay vì gọi sql thẳng trong route) để đoạn
+// bắc cầu DATABASE_URL phía trên chắc chắn được chạy trước.
+export async function checkTables() {
+  const { rows } = await sql<{ ten: string }>`
+    SELECT table_name AS ten FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name IN ('tasks', 'push_subscriptions')
+  `;
+  const ten = rows.map((r) => r.ten);
+  return { tasks: ten.includes("tasks"), push_subscriptions: ten.includes("push_subscriptions") };
+}

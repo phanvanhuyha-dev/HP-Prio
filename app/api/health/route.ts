@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { sql } from "@vercel/postgres";
 import { authOptions } from "@/lib/auth";
+// Nhập từ lib/db (không gọi sql thẳng) để đoạn bắc cầu DATABASE_URL trong đó
+// được chạy trước. Gọi sql trực tiếp sẽ báo thiếu kết nối dù app vẫn chạy được.
+import { checkTables } from "@/lib/db";
 import { describeDbError, describeGeminiError } from "@/lib/diagnostics";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +19,9 @@ export async function GET() {
   const co = (name: string) => Boolean(process.env[name]?.trim());
 
   const bienMoiTruong = {
+    // Cần ít nhất một trong hai biến này thì mới kết nối được database
     POSTGRES_URL: co("POSTGRES_URL"),
+    DATABASE_URL: co("DATABASE_URL"),
     GOOGLE_CLIENT_ID: co("GOOGLE_CLIENT_ID"),
     GOOGLE_CLIENT_SECRET: co("GOOGLE_CLIENT_SECRET"),
     OWNER_EMAIL: co("OWNER_EMAIL"),
@@ -28,27 +32,24 @@ export async function GET() {
     CRON_SECRET: co("CRON_SECRET")
   };
 
-  // Hai giá trị này không phải bí mật nên hiện thẳng để đối chiếu cho nhanh.
   const cauHinh = {
     NEXTAUTH_URL: process.env.NEXTAUTH_URL ?? null,
-    GEMINI_MODEL: process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash (mặc định)"
+    GEMINI_MODEL: process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash (mặc định)",
+    // Biết chắc bản deploy đang chạy là commit nào, khỏi đoán code đã lên chưa
+    commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "không rõ"
   };
 
   // --- Database ---
   let database: Record<string, unknown>;
   try {
-    const { rows } = await sql<{ ten: string }>`
-      SELECT table_name AS ten FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_name IN ('tasks', 'push_subscriptions')
-    `;
-    const bang = rows.map((r) => r.ten);
+    const bang = await checkTables();
     database = {
       ketNoi: true,
-      bangTasks: bang.includes("tasks"),
-      bangPushSubscriptions: bang.includes("push_subscriptions"),
-      ...(bang.length < 2
-        ? { canLam: "Thiếu bảng. Chạy: vercel env pull .env.local rồi npm run db:init" }
-        : {})
+      bangTasks: bang.tasks,
+      bangPushSubscriptions: bang.push_subscriptions,
+      ...(bang.tasks && bang.push_subscriptions
+        ? {}
+        : { canLam: "Thiếu bảng. Dán scripts/schema-oneshot.sql vào trình soạn thảo SQL rồi Run." })
     };
   } catch (err) {
     database = { ketNoi: false, loi: describeDbError(err) };
@@ -60,17 +61,38 @@ export async function GET() {
     gemini = { hoatDong: false, loi: "Chưa cấu hình GEMINI_API_KEY." };
   } else {
     try {
-      // Gọi thử một câu cực ngắn để xác nhận key và model dùng được.
       const { parseTaskInput } = await import("@/lib/gemini");
       await parseTaskInput("kiểm tra hệ thống");
       gemini = { hoatDong: true };
     } catch (err) {
       gemini = { hoatDong: false, loi: describeGeminiError(err) };
+      // Model hiện tại không chạy thì hỏi luôn Google xem key này dùng được model nào,
+      // để khỏi phải đoán mò tên model qua nhiều lần deploy.
+      try {
+        const { listAvailableModels } = await import("@/lib/gemini");
+        const ds = await listAvailableModels();
+        gemini.modelDungDuoc = ds.length ? ds : "API key không thấy model nào";
+        gemini.goiY = ds.length
+          ? `Đặt biến GEMINI_MODEL trên Vercel thành một tên trong danh sách trên, ví dụ "${
+              ds.find((m) => /2\.5-flash$|2\.0-flash$/.test(m)) ?? ds[0]
+            }", rồi Redeploy.`
+          : undefined;
+      } catch (e2) {
+        gemini.khongLietKeDuocModel = describeGeminiError(e2);
+      }
     }
   }
 
   const sanSang =
-    Object.values(bienMoiTruong).every(Boolean) &&
+    (bienMoiTruong.POSTGRES_URL || bienMoiTruong.DATABASE_URL) &&
+    bienMoiTruong.GOOGLE_CLIENT_ID &&
+    bienMoiTruong.GOOGLE_CLIENT_SECRET &&
+    bienMoiTruong.OWNER_EMAIL &&
+    bienMoiTruong.NEXTAUTH_SECRET &&
+    bienMoiTruong.GEMINI_API_KEY &&
+    bienMoiTruong.NEXT_PUBLIC_VAPID_PUBLIC_KEY &&
+    bienMoiTruong.VAPID_PRIVATE_KEY &&
+    bienMoiTruong.CRON_SECRET &&
     database.ketNoi === true &&
     database.bangTasks === true &&
     database.bangPushSubscriptions === true &&
