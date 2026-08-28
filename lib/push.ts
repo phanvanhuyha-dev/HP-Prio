@@ -42,6 +42,13 @@ export async function sendPush(
     return "sent";
   } catch (err: any) {
     if (err?.statusCode === 404 || err?.statusCode === 410) return "expired";
+    // 400/403: đăng ký không còn dùng được với khóa VAPID hiện tại (thường do xoay khóa,
+    // hoặc token đã hỏng). Giữ lại chỉ khiến cron gửi lỗi mãi mỗi ngày, nên cũng dọn luôn.
+    // Người dùng bấm "Bật nhắc deadline" lại là có đăng ký mới.
+    if (err?.statusCode === 400 || err?.statusCode === 403) {
+      console.warn(`Push subscription bị từ chối (HTTP ${err.statusCode}), sẽ xóa khỏi database.`);
+      return "expired";
+    }
     console.error("Push send error:", err);
     return "failed";
   }

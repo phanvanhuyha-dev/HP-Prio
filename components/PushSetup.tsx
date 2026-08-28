@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -14,6 +14,26 @@ export default function PushSetup() {
   const [status, setStatus] = useState<Status>("idle");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Cache promise đăng ký service worker để enablePush dùng lại.
+  const regPromiseRef = useRef<Promise<ServiceWorkerRegistration> | null>(null);
+
+  // Lấy registration đã active để subscribe. Không await thẳng serviceWorker.ready ngay:
+  // .ready không bao giờ resolve nếu bước đăng ký thất bại, làm nút kẹt "Đang bật…" mãi.
+  async function getActiveRegistration() {
+    try {
+      const regPromise = regPromiseRef.current ?? navigator.serviceWorker.register("/sw.js");
+      regPromiseRef.current = regPromise;
+      await regPromise;
+    } catch (err) {
+      // Đăng ký thất bại thì bỏ cache, lần bấm sau thử đăng ký lại từ đầu thay vì
+      // nhận lại mãi đúng promise đã rejected.
+      regPromiseRef.current = null;
+      throw err;
+    }
+    // Đăng ký thành công thì .ready chắc chắn resolve. Vẫn phải chờ worker active,
+    // vì pushManager.subscribe() sẽ lỗi nếu service worker mới cài chưa kịp active.
+    return navigator.serviceWorker.ready;
+  }
 
   useEffect(() => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
@@ -22,8 +42,9 @@ export default function PushSetup() {
     }
 
     let cancelled = false;
-    navigator.serviceWorker
-      .register("/sw.js")
+    const regPromise = navigator.serviceWorker.register("/sw.js");
+    regPromiseRef.current = regPromise;
+    regPromise
       .then((reg) => reg.pushManager.getSubscription())
       .then((existing) => {
         // Đã đăng ký từ lần trước thì hiện đúng trạng thái, không bắt bấm lại.
@@ -31,7 +52,15 @@ export default function PushSetup() {
           setStatus("enabled");
         }
       })
-      .catch((err) => console.error("Service worker error:", err));
+      .catch((err) => {
+        console.error("Service worker error:", err);
+        // Bỏ promise hỏng để lần bấm "Bật nhắc deadline" tự đăng ký lại.
+        regPromiseRef.current = null;
+        if (!cancelled) {
+          setStatus("error");
+          setMessage("Không đăng ký được service worker. Anh bấm thử lại hoặc tải lại trang.");
+        }
+      });
 
     return () => {
       cancelled = true;
@@ -49,12 +78,15 @@ export default function PushSetup() {
         return;
       }
 
-      const reg = await navigator.serviceWorker.ready;
+      // iOS Safari chỉ cho xin quyền thông báo trong ngữ cảnh thao tác của người dùng.
+      // Phải gọi trước mọi bước await khác, nếu không có thể bị từ chối im lặng.
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         setStatus("denied");
         return;
       }
+
+      const reg = await getActiveRegistration();
 
       const sub =
         (await reg.pushManager.getSubscription()) ||
@@ -68,6 +100,10 @@ export default function PushSetup() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(sub)
       });
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         throw new Error(data?.error || "Không lưu được đăng ký thông báo");

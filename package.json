@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "db:init": "node scripts/init-db.mjs"
+    "db:init": "node --env-file=.env.local scripts/init-db.mjs"
   },
   "dependencies": {
     "@vercel/postgres": "^0.10.0",

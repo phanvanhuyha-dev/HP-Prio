@@ -1,4 +1,6 @@
-// Service Worker cho HPPrio PWA — xử lý cache cơ bản + nhận push notification
+// Service Worker cho HPPrio PWA: nhận push notification và mở app khi bấm vào thông báo.
+// Chủ đích KHÔNG cache offline: app luôn cần mạng (API + đăng nhập), thêm cache ở đây
+// dễ gây lỗi kẹt phiên bản cũ hơn là mang lại lợi ích.
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();

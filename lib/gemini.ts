@@ -128,9 +128,12 @@ export type TaskAnalysis = {
 
 export async function analyzeTasks(tasks: unknown[]): Promise<TaskAnalysis> {
   const { iso } = nowInVietnam();
-  const prompt = ANALYSIS_PROMPT.replace("{{TASKS}}", JSON.stringify(tasks, null, 2)).replace(
-    "{{TODAY}}",
-    iso
+  // Thay {{TODAY}} trước để placeholder không bị dò trúng bên trong dữ liệu task.
+  // {{TASKS}} dùng function replacer: nếu truyền chuỗi, các mẫu $$, $&, $', $`
+  // trong tiêu đề công việc sẽ bị String.replace diễn giải và làm hỏng prompt.
+  const prompt = ANALYSIS_PROMPT.replace("{{TODAY}}", iso).replace(
+    "{{TASKS}}",
+    () => JSON.stringify(tasks, null, 2)
   );
 
   const result = await getModel().generateContent(prompt);

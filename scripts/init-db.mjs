@@ -1,4 +1,5 @@
-// Chạy: npm run db:init
+// Chạy: npm run db:init (script đã kèm --env-file=.env.local để nạp POSTGRES_URL,
+// vì Node chạy trực tiếp không tự đọc .env.local như Next.js)
 // Đọc scripts/schema.sql và thực thi lên Vercel Postgres (dùng biến môi trường POSTGRES_URL)
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";

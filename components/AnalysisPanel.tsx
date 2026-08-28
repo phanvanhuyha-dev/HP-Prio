@@ -17,6 +17,11 @@ export default function AnalysisPanel() {
     setError(null);
     try {
       const res = await fetch("/api/analyze");
+      if (res.status === 401) {
+        // Phiên đăng nhập hết hạn: đưa về trang đăng nhập thay vì hiện chữ "unauthorized" thô.
+        window.location.href = "/login";
+        return;
+      }
       const data = await res.json();
       // Trước đây lỗi 500 vẫn được gán vào analysis, làm hiện ra một khung trắng không nội dung.
       if (!res.ok) throw new Error(data?.error || "Không phân tích được lúc này");

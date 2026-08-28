@@ -49,8 +49,11 @@ export function normalizeDeadline(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
+  // Chỉ nhận deadline quanh thời điểm hiện tại. Khoảng 2000-2100 trước đây quá rộng:
+  // chuỗi rác kiểu "5" được new Date() hiểu thành tháng 5/2001 và vẫn lọt qua.
   const year = parsed.getUTCFullYear();
-  if (year < 2000 || year > 2100) return null;
+  const nowYear = new Date().getUTCFullYear();
+  if (year < nowYear - 1 || year > nowYear + 10) return null;
   return parsed.toISOString();
 }
 

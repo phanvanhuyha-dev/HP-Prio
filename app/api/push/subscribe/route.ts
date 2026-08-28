@@ -20,9 +20,23 @@ export async function POST(req: Request) {
   if (
     typeof sub?.endpoint !== "string" ||
     !sub.endpoint ||
+    sub.endpoint.length > 2048 ||
     typeof sub?.keys?.p256dh !== "string" ||
-    typeof sub?.keys?.auth !== "string"
+    !sub.keys.p256dh ||
+    sub.keys.p256dh.length > 512 ||
+    typeof sub?.keys?.auth !== "string" ||
+    !sub.keys.auth ||
+    sub.keys.auth.length > 512
   ) {
+    return NextResponse.json({ error: "Thông tin đăng ký thông báo không hợp lệ" }, { status: 400 });
+  }
+
+  // Endpoint phải là URL https của dịch vụ push, không nhận chuỗi tùy ý vào database.
+  let endpointOk = false;
+  try {
+    endpointOk = new URL(sub.endpoint).protocol === "https:";
+  } catch {}
+  if (!endpointOk) {
     return NextResponse.json({ error: "Thông tin đăng ký thông báo không hợp lệ" }, { status: 400 });
   }
 

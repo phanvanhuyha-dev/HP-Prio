@@ -34,26 +34,30 @@ export default function Dashboard({ userName }: { userName: string }) {
     loadTasks();
   }, [loadTasks]);
 
-  // Cập nhật lạc quan: đổi giao diện trước cho mượt, nếu máy chủ báo lỗi thì trả lại như cũ.
-  async function mutate(id: string, apply: (prev: Task[]) => Task[], request: () => Promise<Response>) {
-    const snapshot = tasks;
-    setTasks(apply(snapshot));
+  // Cập nhật lạc quan: đổi giao diện trước cho mượt. Khi máy chủ báo lỗi thì tải lại
+  // danh sách từ server thay vì khôi phục snapshot: snapshot chụp trước request có thể
+  // ghi đè một thao tác khác đã thành công trong lúc request này đang chạy.
+  async function mutate(apply: (prev: Task[]) => Task[], request: () => Promise<Response>) {
+    setTasks(apply);
     setError(null);
     try {
       const res = await request();
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         throw new Error(data?.error || "Thao tác không thành công");
       }
     } catch (e: any) {
-      setTasks(snapshot);
+      await loadTasks();
       setError(e?.message || "Không kết nối được máy chủ");
     }
   }
 
   function handleDone(id: string) {
     return mutate(
-      id,
       (prev) => prev.filter((t) => t.id !== id),
       () =>
         fetch(`/api/tasks/${id}`, {
@@ -66,7 +70,6 @@ export default function Dashboard({ userName }: { userName: string }) {
 
   function handleDelete(id: string) {
     return mutate(
-      id,
       (prev) => prev.filter((t) => t.id !== id),
       () => fetch(`/api/tasks/${id}`, { method: "DELETE" })
     );
@@ -74,7 +77,6 @@ export default function Dashboard({ userName }: { userName: string }) {
 
   function handleReclassify(id: string, patch: { userUrgent?: boolean; userImportant?: boolean }) {
     return mutate(
-      id,
       (prev) =>
         prev.map((t) =>
           t.id === id

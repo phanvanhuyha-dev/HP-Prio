@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, CSSProperties } from "react";
+import { useEffect, useRef, useState, CSSProperties } from "react";
 
 type ParsedTask = {
   title: string;
@@ -33,6 +33,13 @@ export default function TaskInput({ onSaved }: { onSaved: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<ParsedTask | null>(null);
   const recognitionRef = useRef<any>(null);
+
+  // Nếu unmount trong lúc đang nghe thì tắt hẳn micro, không để phiên nhận giọng nói chạy mồ côi.
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.abort?.();
+    };
+  }, []);
 
   function toggleVoice() {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
