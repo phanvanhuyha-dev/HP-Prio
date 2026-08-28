@@ -61,7 +61,7 @@ git push -u origin main
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
    - `OWNER_EMAIL` (email Gmail của anh — chỉ email này được phép đăng nhập)
    - `NEXTAUTH_SECRET` (chạy `openssl rand -base64 32` để tạo)
-   - `NEXTAUTH_URL` → điền `https://<tên-app>.vercel.app` (xem tên app Vercel tự đặt sau khi deploy lần đầu, rồi quay lại sửa biến này và deploy lại)
+   - `NEXTAUTH_URL` → điền `https://<tên-app>.vercel.app`. Nếu chưa biết domain thì **đừng tạo biến này**, cứ để deploy xong rồi thêm sau. Tạo biến mà bỏ trống giá trị là bản build sẽ hỏng (xem mục 7).
    - `GEMINI_API_KEY`
    - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (chạy `npx web-push generate-vapid-keys` ở máy anh)
    - `CRON_SECRET` (chuỗi bất kỳ do anh tự đặt, dùng để bảo vệ endpoint cron)
@@ -98,6 +98,28 @@ File `vercel.json` đặt cron `0 1 * * *`. Vercel chạy cron theo **giờ UTC*
 Mỗi lần chạy, hệ thống quét các việc có deadline trong **24h tới hoặc vừa quá hạn trong 48h qua** và chưa được nhắc. Khoảng lùi 48h là để cron chạy ngày một lần không bỏ sót việc có deadline rơi vào giữa hai lần chạy.
 
 Nếu muốn nhắc sát giờ hơn (vd mỗi giờ, `0 * * * *`), phải nâng lên **Vercel Pro**. Đặt lịch dày hơn 1 lần/ngày trên gói Hobby sẽ khiến deploy báo lỗi.
+
+---
+
+## 7. Lỗi hay gặp
+
+### Build báo `TypeError: Invalid URL` khi prerender `/`, `/login`, `/_not-found`
+
+Nguyên nhân: biến `NEXTAUTH_URL` được tạo trên Vercel nhưng **để trống giá trị**. next-auth đọc biến này ngay lúc nạp module và gọi `new URL("")`, làm hỏng bước prerender. Thông báo lỗi không hề nhắc tới `NEXTAUTH_URL` nên rất khó đoán.
+
+Lưu ý: biến **không tồn tại** thì không sao, next-auth tự suy ra domain từ `VERCEL_URL`. Chỉ biến **tồn tại nhưng rỗng** mới gây lỗi, vì toán tử `??` của next-auth chỉ bỏ qua `undefined` chứ không bỏ qua chuỗi rỗng.
+
+Cách xử lý: vào Settings > Environment Variables, xóa hẳn `NEXTAUTH_URL` hoặc điền domain thật vào, rồi Redeploy.
+
+`next.config.mjs` đã có sẵn lớp chặn tự bỏ qua giá trị rỗng hoặc chỉ có khoảng trắng, nhưng vẫn nên đặt đúng domain thật cho môi trường Production.
+
+### Đăng nhập Google báo `redirect_uri_mismatch`
+
+Chưa thêm redirect URI của domain thật vào Google Cloud Console. Xem lại bước 5 ở mục 4.
+
+### Đăng nhập xong bị đá về trang login
+
+Kiểm tra `OWNER_EMAIL` đã đúng địa chỉ Gmail đang dùng để đăng nhập chưa. Biến này để trống thì app khóa toàn bộ đăng nhập.
 
 ---
 
