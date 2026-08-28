@@ -3,9 +3,10 @@ node_modules
 out
 build
 
-.env
-.env.local
-.env.*.local
+# Chặn mọi biến thể .env (kể cả .env.local.backup, .env.production...)
+# rồi mở lại đúng một ngoại lệ là file mẫu không chứa bí mật.
+.env*
+!.env.example
 .vercel
 
 *.log
