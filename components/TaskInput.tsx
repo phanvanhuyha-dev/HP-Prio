@@ -264,7 +264,7 @@ function ReviewCard({
           <select
             value={draft.category}
             onChange={(e) => setDraft({ ...draft, category: e.target.value as any })}
-            style={inputStyle}
+            style={selectStyle}
           >
             <option value="work">Công việc (NHG)</option>
             <option value="personal">Cá nhân</option>
@@ -360,6 +360,15 @@ const inputStyle: CSSProperties = {
   color: "var(--cream)",
   fontSize: 14,
   fontFamily: "var(--font-body)"
+};
+
+// Giống ô nhập thường nhưng nền đục. Nền trong suốt khiến một số trình duyệt
+// vẽ khung danh sách xổ xuống bằng màu trắng mặc định, chữ màu kem nằm trên đó
+// gần như không đọc được. Màu --field chính là màu mà nền trong suốt cũ hiện ra
+// khi chồng lên thẻ nền --navy-2, nên nhìn không khác gì trước.
+const selectStyle: CSSProperties = {
+  ...inputStyle,
+  background: "var(--field)"
 };
 
 const primaryBtn: CSSProperties = {

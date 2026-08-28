@@ -9,10 +9,19 @@
   --coral: #D9634B;
   --slate: #8B95A1;
   --line: rgba(247, 244, 238, 0.12);
+  /* Nền ô nhập, dạng đục thay vì trong suốt. Thẻ <select> cần màu đục vì một số
+     trình duyệt lấy chính màu nền của select để vẽ khung danh sách xổ xuống;
+     nếu để trong suốt thì khung đó rơi về màu trắng mặc định. */
+  --field: #1F2F42;
 
   --font-display: 'Fraunces', serif;
   --font-body: 'Inter', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
+
+  /* Báo cho trình duyệt biết đây là giao diện tối, để những phần do trình duyệt
+     tự vẽ cũng theo tông tối: thanh cuộn, biểu tượng lịch của input datetime,
+     và nền mặc định của danh sách xổ xuống. */
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -31,6 +40,24 @@ a { color: inherit; }
 button {
   font-family: var(--font-body);
   cursor: pointer;
+}
+
+/* Danh sách xổ xuống của <select> được trình duyệt vẽ ở tầng riêng, KHÔNG nằm
+   trong thẻ cha nên không thừa hưởng nền tối. Không đặt màu ở đây thì chữ màu
+   kem rơi xuống nền trắng mặc định và gần như không đọc được.
+   Phải đặt cả trên <select> lẫn <option>: Windows lấy màu từ option, còn một
+   số bản Linux/Firefox lại lấy từ select. */
+select,
+select option {
+  background-color: var(--field);
+  color: var(--cream);
+}
+
+/* Trên nền tối, dòng đang được chọn cần chữ sáng rõ. */
+select option:checked,
+select option:hover {
+  background-color: var(--teal);
+  color: var(--cream);
 }
 
 :focus-visible {
