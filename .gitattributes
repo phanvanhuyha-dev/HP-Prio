@@ -1,0 +1,7 @@
+# Chuẩn hóa xuống dòng: repo luôn lưu LF, tránh việc soạn trên Windows
+# rồi toàn bộ file bị báo "đã thay đổi" khi build trên Linux (Vercel).
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary

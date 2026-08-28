@@ -1,0 +1,201 @@
+import { sql } from "@vercel/postgres";
+
+export type Task = {
+  id: string;
+  user_email: string;
+  raw_input: string;
+  title: string;
+  category: "work" | "personal";
+  deadline: string | null;
+  status: "open" | "done" | "archived";
+  ai_urgent: boolean | null;
+  ai_important: boolean | null;
+  ai_category: string | null;
+  ai_deadline: string | null;
+  ai_reasoning: string | null;
+  user_urgent: boolean;
+  user_important: boolean;
+  reminder_sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const TASK_CATEGORIES = ["work", "personal"] as const;
+export const TASK_STATUSES = ["open", "done", "archived"] as const;
+
+export type TaskCategory = (typeof TASK_CATEGORIES)[number];
+export type TaskStatus = (typeof TASK_STATUSES)[number];
+
+export function isValidCategory(value: unknown): value is TaskCategory {
+  return typeof value === "string" && (TASK_CATEGORIES as readonly string[]).includes(value);
+}
+
+export function isValidStatus(value: unknown): value is TaskStatus {
+  return typeof value === "string" && (TASK_STATUSES as readonly string[]).includes(value);
+}
+
+// Cột id là UUID. Nếu truyền chuỗi không đúng định dạng, Postgres sẽ ném lỗi
+// "invalid input syntax for type uuid" và trả về 500 thay vì 404.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isValidUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_RE.test(value);
+}
+
+// Chuẩn hóa deadline về ISO 8601. Trả null nếu không phải ngày hợp lệ,
+// tránh việc chèn chuỗi rác vào cột TIMESTAMPTZ và làm route chết.
+export function normalizeDeadline(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string" || !value.trim()) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const year = parsed.getUTCFullYear();
+  if (year < 2000 || year > 2100) return null;
+  return parsed.toISOString();
+}
+
+export async function listTasks(userEmail: string, status: TaskStatus = "open") {
+  const { rows } = await sql<Task>`
+    SELECT * FROM tasks
+    WHERE user_email = ${userEmail} AND status = ${status}
+    ORDER BY
+      (user_urgent AND user_important) DESC,
+      deadline ASC NULLS LAST,
+      created_at DESC
+  `;
+  return rows;
+}
+
+export async function createTask(data: {
+  userEmail: string;
+  rawInput: string;
+  title: string;
+  category: string;
+  deadline: string | null;
+  aiUrgent: boolean | null;
+  aiImportant: boolean | null;
+  aiCategory: string | null;
+  aiDeadline: string | null;
+  aiReasoning: string | null;
+  userUrgent: boolean;
+  userImportant: boolean;
+}) {
+  const { rows } = await sql<Task>`
+    INSERT INTO tasks (
+      user_email, raw_input, title, category, deadline,
+      ai_urgent, ai_important, ai_category, ai_deadline, ai_reasoning,
+      user_urgent, user_important
+    ) VALUES (
+      ${data.userEmail}, ${data.rawInput}, ${data.title}, ${data.category}, ${data.deadline},
+      ${data.aiUrgent}, ${data.aiImportant}, ${data.aiCategory}, ${data.aiDeadline}, ${data.aiReasoning},
+      ${data.userUrgent}, ${data.userImportant}
+    )
+    RETURNING *
+  `;
+  return rows[0];
+}
+
+export async function updateTaskStatus(id: string, userEmail: string, status: TaskStatus) {
+  const { rows } = await sql<Task>`
+    UPDATE tasks SET status = ${status}, updated_at = now()
+    WHERE id = ${id} AND user_email = ${userEmail}
+    RETURNING *
+  `;
+  return rows[0] ?? null;
+}
+
+export async function updateTask(
+  id: string,
+  userEmail: string,
+  data: {
+    title?: string;
+    category?: string;
+    // undefined = không đụng tới, null = xóa deadline
+    deadline?: string | null;
+    userUrgent?: boolean;
+    userImportant?: boolean;
+  }
+) {
+  // COALESCE(${null}, deadline) luôn giữ nguyên giá trị cũ, nên trước đây
+  // không thể xóa một deadline đã đặt. Dùng cờ riêng để phân biệt rõ
+  // "không gửi trường này" với "gửi null để xóa".
+  const clearDeadline = data.deadline === null;
+  const nextDeadline = clearDeadline ? null : normalizeDeadline(data.deadline);
+
+  const { rows } = await sql<Task>`
+    UPDATE tasks SET
+      title = COALESCE(${data.title ?? null}::text, title),
+      category = COALESCE(${data.category ?? null}::text, category),
+      deadline = CASE
+        WHEN ${clearDeadline}::boolean THEN NULL
+        ELSE COALESCE(${nextDeadline}::timestamptz, deadline)
+      END,
+      user_urgent = COALESCE(${data.userUrgent ?? null}::boolean, user_urgent),
+      user_important = COALESCE(${data.userImportant ?? null}::boolean, user_important),
+      updated_at = now()
+    WHERE id = ${id} AND user_email = ${userEmail}
+    RETURNING *
+  `;
+  return rows[0] ?? null;
+}
+
+export async function deleteTask(id: string, userEmail: string) {
+  const { rowCount } = await sql`
+    DELETE FROM tasks WHERE id = ${id} AND user_email = ${userEmail}
+  `;
+  return (rowCount ?? 0) > 0;
+}
+
+export async function getUpcomingForReminders() {
+  // Việc có deadline trong 24h tới HOẶC vừa quá hạn trong 48h qua, chưa nhắc, chưa xong.
+  // Khoảng lùi 48h để cron chạy 1 lần/ngày (gói Hobby) không bỏ sót việc
+  // có deadline rơi vào giữa hai lần chạy.
+  const { rows } = await sql<Task>`
+    SELECT * FROM tasks
+    WHERE status = 'open'
+      AND deadline IS NOT NULL
+      AND deadline <= now() + interval '24 hours'
+      AND deadline >= now() - interval '48 hours'
+      AND reminder_sent_at IS NULL
+    ORDER BY deadline ASC
+  `;
+  return rows;
+}
+
+export async function markReminderSent(id: string) {
+  await sql`UPDATE tasks SET reminder_sent_at = now() WHERE id = ${id}`;
+}
+
+export type StoredPushSubscription = {
+  id: string;
+  user_email: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  created_at: string;
+};
+
+export async function savePushSubscription(userEmail: string, sub: {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}) {
+  await sql`
+    INSERT INTO push_subscriptions (user_email, endpoint, p256dh, auth)
+    VALUES (${userEmail}, ${sub.endpoint}, ${sub.keys.p256dh}, ${sub.keys.auth})
+    ON CONFLICT (endpoint) DO UPDATE
+      SET p256dh = EXCLUDED.p256dh,
+          auth = EXCLUDED.auth,
+          user_email = EXCLUDED.user_email
+  `;
+}
+
+export async function getPushSubscriptions(userEmail: string) {
+  const { rows } = await sql<StoredPushSubscription>`
+    SELECT * FROM push_subscriptions WHERE user_email = ${userEmail}
+  `;
+  return rows;
+}
+
+export async function deletePushSubscription(endpoint: string) {
+  await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
+}
