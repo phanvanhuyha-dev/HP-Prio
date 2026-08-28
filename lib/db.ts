@@ -1,5 +1,18 @@
 import { sql } from "@vercel/postgres";
 
+// Tích hợp Neon trên Vercel có khi chỉ đặt DATABASE_URL, trong khi @vercel/postgres
+// chỉ tìm đúng POSTGRES_URL rồi báo 'missing_connection_string'. Bắc cầu sang để
+// khỏi phải thêm biến thủ công.
+// Chỗ này chạy sau lệnh import (ESM luôn nâng import lên trước) nhưng vẫn kịp,
+// vì sql là proxy chỉ đọc chuỗi kết nối ở lần gọi truy vấn đầu tiên.
+if (!process.env.POSTGRES_URL?.trim()) {
+  const duPhong =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL_NON_POOLING;
+  if (duPhong?.trim()) process.env.POSTGRES_URL = duPhong.trim();
+}
+
 export type Task = {
   id: string;
   user_email: string;

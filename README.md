@@ -73,11 +73,24 @@ git push -u origin main
 5. Sau khi có domain thật (vd `hpprio-xyz.vercel.app`):
    - Quay lại Google Cloud Console, thêm redirect URI: `https://hpprio-xyz.vercel.app/api/auth/callback/google`
    - Cập nhật lại `NEXTAUTH_URL` trong Vercel = domain thật → Redeploy.
-6. Vào project trên Vercel → **Storage > (database vừa tạo) > Query** (hoặc dùng `vercel env pull` + `npm run db:init` từ máy anh) để khởi tạo bảng:
+6. Tạo bảng trong database. Có hai cách, chọn một:
+
+   **Cách A, dán SQL trên web (nhanh nhất, không cần cài gì):**
+   - Mở database vừa tạo (trên Vercel: **Storage > Query**, hoặc trên Neon Console: **Query**)
+   - **Tắt công tắc "Read-only"** nếu có
+   - Mở file `scripts/schema-oneshot.sql`, copy toàn bộ, dán vào rồi bấm Run
+
+   Phải dùng `schema-oneshot.sql` chứ không phải `schema.sql`: các trình soạn thảo SQL trên web chỉ nhận một lệnh mỗi lần, dán nhiều lệnh sẽ báo `cannot insert multiple commands into a prepared statement`. File oneshot đã bọc tất cả trong một khối `DO $$ ... $$`.
+
+   **Cách B, chạy từ máy:**
    ```bash
+   npm i -g vercel
+   vercel login
+   vercel link
    vercel env pull .env.local
    npm run db:init
    ```
+   Lưu ý `vercel env pull` sẽ **ghi đè** `.env.local`, nên sao lưu file cũ trước nếu trong đó có giá trị chưa đưa lên Vercel.
 
 ---
 
@@ -128,6 +141,14 @@ Cách xử lý: vào Settings > Environment Variables, xóa hẳn `NEXTAUTH_URL`
 ### Đăng nhập Google báo `redirect_uri_mismatch`
 
 Chưa thêm redirect URI của domain thật vào Google Cloud Console. Xem lại bước 5 ở mục 4.
+
+### `cannot insert multiple commands into a prepared statement`
+
+Đang dán nhiều câu lệnh SQL vào trình soạn thảo trên web. Dùng `scripts/schema-oneshot.sql` thay cho `schema.sql`, và nhớ tắt công tắc **Read-only**.
+
+### `missing_connection_string` khi chạy `npm run db:init`
+
+`.env.local` ở máy chưa có `POSTGRES_URL`. Biến điền trên Vercel không tự về máy, phải chạy `vercel env pull .env.local`. Hoặc đơn giản hơn là dùng Cách A ở mục 4 bước 6, tạo bảng thẳng trên web thì không cần biến ở máy.
 
 ### Đăng nhập xong bị đá về trang login
 
