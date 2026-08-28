@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { signOut } from "next-auth/react";
+import { docLoi, loiThanThien } from "@/lib/client-api";
 import TaskInput from "./TaskInput";
 import QuadrantBoard, { type Task } from "./QuadrantBoard";
 import AnalysisPanel from "./AnalysisPanel";
@@ -11,6 +12,22 @@ export default function Dashboard({ userName }: { userName: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [daLuu, setDaLuu] = useState<string | null>(null);
+  const [hoanTac, setHoanTac] = useState<
+    { task: Task; loai: "xong" | "xoa"; hen?: ReturnType<typeof setTimeout> } | null
+  >(null);
+  const hoanTacRef = useRef(hoanTac);
+  hoanTacRef.current = hoanTac;
+
+  // Rời trang trong lúc còn hẹn xóa thì gửi lệnh xóa luôn, không để treo lơ lửng.
+  useEffect(() => {
+    return () => {
+      const h = hoanTacRef.current;
+      if (h?.loai === "xoa" && h.hen) {
+        clearTimeout(h.hen);
+        navigator.sendBeacon?.(`/api/tasks/${h.task.id}`);
+      }
+    };
+  }, []);
 
   function handleSaved(tieuDe: string) {
     setDaLuu(tieuDe);
@@ -26,12 +43,13 @@ export default function Dashboard({ userName }: { userName: string }) {
         window.location.href = "/login";
         return;
       }
+      if (!res.ok) throw new Error(await docLoi(res));
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Không tải được danh sách công việc");
       setTasks(data.tasks || []);
+      // Tải lại thành công thì lỗi cũ không còn đúng nữa, phải xóa đi.
       setError(null);
     } catch (e: any) {
-      setError(e?.message || "Không kết nối được máy chủ");
+      setError(loiThanThien(e));
     } finally {
       setLoading(false);
     }
@@ -53,17 +71,60 @@ export default function Dashboard({ userName }: { userName: string }) {
         window.location.href = "/login";
         return;
       }
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "Thao tác không thành công");
-      }
+      if (!res.ok) throw new Error(await docLoi(res));
     } catch (e: any) {
       await loadTasks();
-      setError(e?.message || "Không kết nối được máy chủ");
+      setError(loiThanThien(e));
     }
   }
 
+  // --- Hoàn tác -----------------------------------------------------------
+  // "Xong" đảo ngược được ngay vì dữ liệu chỉ đổi trạng thái, không mất đi.
+  function hoanTacXong(task: Task) {
+    setHoanTac(null);
+    return mutate(
+      (prev) => (prev.some((t) => t.id === task.id) ? prev : [task, ...prev]),
+      () =>
+        fetch(`/api/tasks/${task.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "open" })
+        })
+    );
+  }
+
+  // Xóa thì không đảo ngược được sau khi đã gửi lệnh, nên HOÃN gửi 6 giây.
+  // Trong lúc đó việc đã biến khỏi ma trận và người dùng có thể lấy lại.
+  function xoaCoHoanTac(task: Task) {
+    setTasks((prev) => prev.filter((t) => t.id !== task.id));
+    setError(null);
+
+    const hen = setTimeout(async () => {
+      setHoanTac((h) => (h?.task.id === task.id ? null : h));
+      try {
+        const res = await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
+        if (!res.ok && res.status !== 404) throw new Error(await docLoi(res));
+      } catch (e: any) {
+        await loadTasks();
+        setError(loiThanThien(e));
+      }
+    }, 6000);
+
+    setHoanTac({ task, loai: "xoa", hen });
+  }
+
+  function huyXoa(h: { task: Task; hen: ReturnType<typeof setTimeout> }) {
+    clearTimeout(h.hen);
+    setHoanTac(null);
+    setTasks((prev) => (prev.some((t) => t.id === h.task.id) ? prev : [h.task, ...prev]));
+  }
+
   function handleDone(id: string) {
+    const task = tasks.find((t) => t.id === id);
+    if (task) {
+      setHoanTac({ task, loai: "xong" });
+      setTimeout(() => setHoanTac((h) => (h?.task.id === id ? null : h)), 8000);
+    }
     return mutate(
       (prev) => prev.filter((t) => t.id !== id),
       () =>
@@ -76,10 +137,8 @@ export default function Dashboard({ userName }: { userName: string }) {
   }
 
   function handleDelete(id: string) {
-    return mutate(
-      (prev) => prev.filter((t) => t.id !== id),
-      () => fetch(`/api/tasks/${id}`, { method: "DELETE" })
-    );
+    const task = tasks.find((t) => t.id === id);
+    if (task) xoaCoHoanTac(task);
   }
 
   function handleReclassify(
@@ -162,21 +221,74 @@ export default function Dashboard({ userName }: { userName: string }) {
         </p>
       )}
 
+      {/* Băng hoàn tác cho "xong" và "xóa" */}
+      {hoanTac && (
+        <div
+          role="status"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            marginTop: 12,
+            background: "var(--navy-2)",
+            border: "1px solid var(--line)",
+            borderRadius: 8,
+            padding: "8px 12px"
+          }}
+        >
+          <span style={{ fontSize: 13, color: "var(--cream)" }}>
+            {hoanTac.loai === "xong" ? "Đã đánh dấu xong" : "Đang xóa"} “{hoanTac.task.title}”
+          </span>
+          <button
+            onClick={() =>
+              hoanTac.loai === "xong"
+                ? hoanTacXong(hoanTac.task)
+                : huyXoa(hoanTac as { task: Task; hen: ReturnType<typeof setTimeout> })
+            }
+            style={{
+              background: "transparent",
+              border: "1px solid var(--amber)",
+              color: "var(--amber)",
+              borderRadius: 8,
+              padding: "8px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              minHeight: 40,
+              flexShrink: 0
+            }}
+          >
+            Hoàn tác
+          </button>
+        </div>
+      )}
+
       {error && (
-        <p
+        <div
           role="alert"
           style={{
-            color: "var(--coral)",
-            fontSize: 13,
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 12,
             marginTop: 12,
-            background: "rgba(217, 99, 75, 0.1)",
+            background: "rgba(222, 121, 100, 0.12)",
             border: "1px solid var(--coral)",
             borderRadius: 8,
             padding: "8px 12px"
           }}
         >
-          {error}
-        </p>
+          <span style={{ color: "var(--coral)", fontSize: 13 }}>{error}</span>
+          {/* Lỗi cũ treo mãi ở đầu trang là sai. Cho đóng được. */}
+          <button
+            onClick={() => setError(null)}
+            aria-label="Đóng thông báo lỗi"
+            className="tap"
+            style={{ background: "none", border: "none", color: "var(--coral)", fontSize: 14, margin: -10, flexShrink: 0 }}
+          >
+            ✕
+          </button>
+        </div>
       )}
 
       <div style={{ marginTop: 26, marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>

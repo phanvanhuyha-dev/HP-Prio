@@ -83,8 +83,11 @@ export default function QuadrantBoard({
       {QUADRANTS.map((q) => {
         const items = tasks.filter((t) => t.user_urgent === q.urgent && t.user_important === q.important);
         return (
-          <div
+          // section + h3 để người dùng trình đọc màn hình nhảy được giữa 4 ô.
+          // Trước đây tiêu đề ô là div trần nên không có mốc nào để điều hướng.
+          <section
             key={q.key}
+            aria-labelledby={`o-${q.key}`}
             style={{
               background: "var(--navy-2)",
               border: `1px solid var(--line)`,
@@ -95,9 +98,18 @@ export default function QuadrantBoard({
             }}
           >
             <div style={{ marginBottom: 10 }}>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 600, color: "var(--cream)" }}>
+              <h3
+                id={`o-${q.key}`}
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: "var(--cream)",
+                  margin: 0
+                }}
+              >
                 {q.label}
-              </div>
+              </h3>
               <div className="mono" style={{ fontSize: 11, color: "var(--slate)", textTransform: "uppercase" }}>
                 {q.sub} · {items.length}
               </div>
@@ -117,7 +129,7 @@ export default function QuadrantBoard({
                 />
               ))}
             </div>
-          </div>
+          </section>
         );
       })}
     </div>
@@ -140,8 +152,11 @@ function TaskRow({
   const [dangSua, setDangSua] = useState(false);
   const [nhap, setNhap] = useState(task.notes ?? "");
 
+  // Bỏ window.confirm: hộp thoại hệ thống chặn luồng, không theo giao diện app,
+  // và vẫn không cứu được khi bấm nhầm. Thay bằng băng "Hoàn tác" 6 giây ở
+  // Dashboard, việc chỉ thật sự bị xóa sau khoảng chờ đó.
   function confirmDelete() {
-    if (window.confirm(`Xóa hẳn việc “${task.title}”?`)) onDelete(task.id);
+    onDelete(task.id);
   }
 
   function luuGhiChu() {

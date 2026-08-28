@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useId, CSSProperties } from "react";
+import { docLoi, loiThanThien, ngayVN } from "@/lib/client-api";
 
 type ParsedTask = {
   title: string;
@@ -37,18 +38,6 @@ function localInputToIso(value: string) {
 function ghiChuMacDinh(cauGoc: string, tieuDe: string) {
   const chuanHoa = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
   return chuanHoa(cauGoc) === chuanHoa(tieuDe) ? "" : cauGoc.trim();
-}
-
-// Lỗi mạng của trình duyệt là tiếng Anh thô ("Failed to fetch"), dịch sang câu
-// người dùng hiểu được.
-function loiThanThien(e: any) {
-  if (e?.name === "AbortError") {
-    return "AI phản hồi quá lâu nên đã dừng. Anh thử lại, hoặc bấm “Bỏ qua AI” để tự nhập.";
-  }
-  if (e instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(String(e?.message))) {
-    return "Mất kết nối mạng. Anh kiểm tra đường truyền rồi thử lại, nội dung vừa gõ vẫn được giữ.";
-  }
-  return e?.message || "Có lỗi xảy ra, anh thử lại.";
 }
 
 export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => void }) {
@@ -128,7 +117,13 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
 
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    const hetGio = setTimeout(() => ctrl.abort(), HAN_CHO_MS);
+    // Phân biệt "hết giờ" với "người dùng bấm Dừng": hai việc này cần hai câu
+    // thông báo khác nhau, trước đây gộp làm một nên báo sai bản chất.
+    let doHetGio = false;
+    const hetGio = setTimeout(() => {
+      doHetGio = true;
+      ctrl.abort();
+    }, HAN_CHO_MS);
 
     try {
       const res = await fetch("/api/parse", {
@@ -141,12 +136,13 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
         window.location.href = "/login";
         return;
       }
+      // Không gọi thẳng res.json(): body có thể là text/plain khi hạ tầng trả 503.
+      if (!res.ok) throw new Error(await docLoi(res));
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Không phân tích được");
       setDungAI(true);
       setSuggestion(data.parsed);
     } catch (e: any) {
-      setError(loiThanThien(e));
+      setError(loiThanThien(doHetGio ? Object.assign(e ?? {}, { quaHan: true }) : e));
     } finally {
       clearTimeout(hetGio);
       abortRef.current = null;
@@ -190,10 +186,7 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
       }
       // Lưu thất bại mà vẫn xóa trắng ô nhập thì người dùng mất nội dung vừa gõ
       // mà tưởng đã lưu xong.
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "Không lưu được công việc");
-      }
+      if (!res.ok) throw new Error(await docLoi(res));
       const tieuDe = final.title.trim();
       setText("");
       setSuggestion(null);
@@ -294,45 +287,45 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
             Bỏ qua AI
           </button>
 
-          {loading ? (
+          {/* Nút Dừng phải NẰM RIÊNG, không được biến nút chính thành nút hủy:
+              nhấp đúp vào nút chính sẽ tự hủy chính request vừa gửi. */}
+          {loading && (
             <button
               onClick={huyPhanTich}
               style={{
-                background: "var(--amber)",
-                color: "var(--navy)",
-                border: "none",
+                background: "transparent",
+                color: "var(--coral)",
+                border: "1px solid var(--coral)",
                 borderRadius: 10,
-                padding: "12px 20px",
-                fontWeight: 600,
-                fontSize: 14,
-                minHeight: 44,
-                display: "flex",
-                alignItems: "center",
-                gap: 8
+                padding: "12px 16px",
+                fontSize: 13,
+                minHeight: 44
               }}
             >
-              <span className="spinner" aria-hidden="true" />
-              Đang phân tích {giay}s · Dừng
-            </button>
-          ) : (
-            <button
-              onClick={handleAnalyze}
-              disabled={!text.trim()}
-              style={{
-                background: "var(--amber)",
-                color: "var(--navy)",
-                border: "none",
-                borderRadius: 10,
-                padding: "12px 22px",
-                fontWeight: 600,
-                fontSize: 14,
-                minHeight: 44,
-                opacity: !text.trim() ? 0.5 : 1
-              }}
-            >
-              Phân tích với AI
+              Dừng
             </button>
           )}
+          <button
+            onClick={handleAnalyze}
+            disabled={!text.trim() || loading}
+            style={{
+              background: "var(--amber)",
+              color: "var(--navy)",
+              border: "none",
+              borderRadius: 10,
+              padding: "12px 22px",
+              fontWeight: 600,
+              fontSize: 14,
+              minHeight: 44,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              opacity: !text.trim() || loading ? 0.6 : 1
+            }}
+          >
+            {loading && <span className="spinner" aria-hidden="true" />}
+            {loading ? `Đang phân tích ${giay}s` : "Phân tích với AI"}
+          </button>
         </div>
       </div>
 
@@ -458,9 +451,12 @@ function ReviewCard({
               AI không đủ chắc chắn về ngày, anh tự điền nếu có hạn chót.
             </p>
           )}
-          {daQua && (
-            <p role="alert" style={{ fontSize: 11.5, color: "var(--coral)", margin: "4px 0 0" }}>
-              Hạn chót này đã qua. Anh kiểm tra lại giúp.
+          {/* Ô datetime-local hiển thị theo ngôn ngữ trình duyệt, ra dạng
+              "01-Aug-2026 09:00 AM" và không ép được. Hiện thêm dòng tiếng Việt. */}
+          {draft.deadline && (
+            <p style={{ fontSize: 11.5, color: daQua ? "var(--coral)" : "var(--slate)", margin: "4px 0 0" }}>
+              {daQua ? "⚠ Đã qua: " : "Tức là "}
+              {ngayVN(draft.deadline)}
             </p>
           )}
         </div>

@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { docLoi, loiThanThien } from "@/lib/client-api";
 
 type Analysis = {
   summary: string;
@@ -7,60 +8,110 @@ type Analysis = {
   risks: string[];
 };
 
+const HAN_CHO_MS = 60000;
+
 export default function AnalysisPanel() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
+  const [giay, setGiay] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  useEffect(() => {
+    if (!loading) return setGiay(0);
+    const t = setInterval(() => setGiay((g) => g + 1), 1000);
+    return () => clearInterval(t);
+  }, [loading]);
 
   async function run() {
     setLoading(true);
     setError(null);
+
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    let doHetGio = false;
+    const hetGio = setTimeout(() => {
+      doHetGio = true;
+      ctrl.abort();
+    }, HAN_CHO_MS);
+
     try {
-      const res = await fetch("/api/analyze");
+      const res = await fetch("/api/analyze", { signal: ctrl.signal });
       if (res.status === 401) {
-        // Phiên đăng nhập hết hạn: đưa về trang đăng nhập thay vì hiện chữ "unauthorized" thô.
         window.location.href = "/login";
         return;
       }
-      const data = await res.json();
-      // Trước đây lỗi 500 vẫn được gán vào analysis, làm hiện ra một khung trắng không nội dung.
-      if (!res.ok) throw new Error(data?.error || "Không phân tích được lúc này");
-      setAnalysis(data);
+      if (!res.ok) throw new Error(await docLoi(res));
+      setAnalysis(await res.json());
     } catch (e: any) {
       setAnalysis(null);
-      setError(e?.message || "Không kết nối được máy chủ");
+      setError(loiThanThien(doHetGio ? Object.assign(e ?? {}, { quaHan: true }) : e));
     } finally {
+      clearTimeout(hetGio);
+      abortRef.current = null;
       setLoading(false);
     }
   }
 
   return (
-    <div style={{ marginTop: 22 }}>
-      <button
-        onClick={run}
-        disabled={loading}
-        style={{
-          background: "transparent",
-          border: "1px solid var(--teal)",
-          color: "var(--teal)",
-          borderRadius: 10,
-          padding: "11px 18px",
-          fontSize: 13.5,
-          fontWeight: 600,
-          minHeight: 44,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8
-        }}
-      >
-        {loading && <span className="spinner" aria-hidden="true" />}
-        {loading ? "Đang phân tích…" : "📊 Phân tích & khuyến nghị"}
-      </button>
+    <section style={{ marginTop: 22 }} aria-labelledby="tieu-de-phan-tich">
+      <h2 id="tieu-de-phan-tich" className="sr-only">
+        Phân tích và khuyến nghị
+      </h2>
 
-      {/* Trình đọc màn hình cần được báo trạng thái, không chỉ đổi chữ trên nút */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <button
+          onClick={run}
+          disabled={loading}
+          style={{
+            background: "transparent",
+            border: "1px solid var(--teal)",
+            color: "var(--teal)",
+            borderRadius: 10,
+            padding: "11px 18px",
+            fontSize: 13.5,
+            fontWeight: 600,
+            minHeight: 44,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            opacity: loading ? 0.6 : 1
+          }}
+        >
+          {loading && <span className="spinner" aria-hidden="true" />}
+          {loading ? `Đang phân tích ${giay}s` : "📊 Phân tích & khuyến nghị"}
+        </button>
+
+        {/* Đồng bộ với nút Phân tích với AI: cũng phải dừng được giữa chừng. */}
+        {loading && (
+          <button
+            onClick={() => abortRef.current?.abort()}
+            style={{
+              background: "transparent",
+              color: "var(--coral)",
+              border: "1px solid var(--coral)",
+              borderRadius: 10,
+              padding: "11px 16px",
+              fontSize: 13,
+              minHeight: 44
+            }}
+          >
+            Dừng
+          </button>
+        )}
+      </div>
+
       <p aria-live="polite" className="sr-only">
-        {loading ? "Đang phân tích danh sách công việc" : analysis ? "Đã có kết quả phân tích" : ""}
+        {loading ? `Đang phân tích, đã chờ ${giay} giây` : analysis ? "Đã có kết quả phân tích" : ""}
       </p>
+
+      {loading && (
+        <p style={{ fontSize: 12, color: "var(--slate)", marginTop: 10, marginBottom: 0 }}>
+          Việc càng nhiều thì càng lâu, thường 20 đến 50 giây.
+        </p>
+      )}
 
       {error && (
         <p role="alert" style={{ color: "var(--coral)", fontSize: 13, marginTop: 12 }}>
@@ -82,9 +133,9 @@ export default function AnalysisPanel() {
 
           {analysis.recommendations?.length > 0 && (
             <>
-              <div className="mono" style={{ fontSize: 11.5, color: "var(--teal)", marginTop: 14, textTransform: "uppercase" }}>
+              <h3 className="mono" style={{ fontSize: 11.5, color: "var(--teal)", margin: "14px 0 0", textTransform: "uppercase" }}>
                 Khuyến nghị
-              </div>
+              </h3>
               <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
                 {analysis.recommendations.map((r, i) => (
                   <li key={i} style={{ fontSize: 13.5, marginBottom: 6, color: "var(--cream)" }}>{r}</li>
@@ -95,9 +146,9 @@ export default function AnalysisPanel() {
 
           {analysis.risks?.length > 0 && (
             <>
-              <div className="mono" style={{ fontSize: 11, color: "var(--coral)", marginTop: 14, textTransform: "uppercase" }}>
+              <h3 className="mono" style={{ fontSize: 11.5, color: "var(--coral)", margin: "14px 0 0", textTransform: "uppercase" }}>
                 Rủi ro
-              </div>
+              </h3>
               <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
                 {analysis.risks.map((r, i) => (
                   <li key={i} style={{ fontSize: 13.5, marginBottom: 6, color: "var(--cream)" }}>{r}</li>
@@ -107,6 +158,6 @@ export default function AnalysisPanel() {
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 }

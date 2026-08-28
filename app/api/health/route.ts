@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 // Nhập từ lib/db (không gọi sql thẳng) để đoạn bắc cầu DATABASE_URL trong đó
 // được chạy trước. Gọi sql trực tiếp sẽ báo thiếu kết nối dù app vẫn chạy được.
-import { checkTables } from "@/lib/db";
+import { checkSchema, damBaoSchema } from "@/lib/db";
 import { describeDbError, describeGeminiError } from "@/lib/diagnostics";
 
 export const dynamic = "force-dynamic";
@@ -45,17 +45,21 @@ export async function GET() {
   // --- Database ---
   let database: Record<string, unknown>;
   try {
-    const bang = await checkTables();
+    // Tự vá cấu trúc trước khi kiểm tra, để trang này vừa chẩn đoán vừa sửa.
+    await damBaoSchema();
+    const s = await checkSchema();
     database = {
       ketNoi: true,
-      bangTasks: bang.tasks,
-      bangPushSubscriptions: bang.push_subscriptions,
-      ...(bang.tasks && bang.push_subscriptions
-        ? {}
-        : { canLam: "Thiếu bảng. Dán scripts/schema-oneshot.sql vào trình soạn thảo SQL rồi Run." })
+      bangTasks: s.tasks,
+      bangPushSubscriptions: s.push_subscriptions,
+      // Kiểm tới từng cột. Trước đây chỉ xem bảng có tồn tại không nên báo
+      // khỏe trong khi đường ghi đang chết vì thiếu cột.
+      cotConThieu: s.thieu,
+      duGhiDuLieu: s.thieu.length === 0
     };
   } catch (err) {
-    database = { ketNoi: false, loi: describeDbError(err) };
+    const m = describeDbError(err);
+    database = { ketNoi: false, duGhiDuLieu: false, loi: m.nguoiDung, khacPhuc: m.khacPhuc };
   }
 
   // --- Gemini ---
@@ -68,7 +72,8 @@ export async function GET() {
       await parseTaskInput("kiểm tra hệ thống");
       gemini = { hoatDong: true };
     } catch (err) {
-      gemini = { hoatDong: false, loi: describeGeminiError(err) };
+      const m = describeGeminiError(err);
+      gemini = { hoatDong: false, loi: m.nguoiDung, khacPhuc: m.khacPhuc };
       // Liệt kê model để biết app còn lựa chọn nào. App tự chuyển model khi cần,
       // nên chỉ cần xem chứ không phải tự đặt tên vào cấu hình.
       try {
@@ -77,7 +82,7 @@ export async function GET() {
         gemini.modelDungDuoc = ds.length ? ds : "API key không thấy model nào";
         gemini.modelAppSeChon = ds.length ? chonModelTot(ds) : null;
       } catch (e2) {
-        gemini.khongLietKeDuocModel = describeGeminiError(e2);
+        gemini.khongLietKeDuocModel = describeGeminiError(e2).khacPhuc ?? describeGeminiError(e2).nguoiDung;
       }
     }
   }
@@ -93,8 +98,8 @@ export async function GET() {
     bienMoiTruong.VAPID_PRIVATE_KEY &&
     bienMoiTruong.CRON_SECRET &&
     database.ketNoi === true &&
-    database.bangTasks === true &&
-    database.bangPushSubscriptions === true &&
+    // Phải đủ cột mới coi là sẵn sàng, không chỉ có bảng
+    database.duGhiDuLieu === true &&
     gemini.hoatDong === true;
 
   return NextResponse.json({ sanSang, bienMoiTruong, cauHinh, database, gemini }, { status: 200 });
