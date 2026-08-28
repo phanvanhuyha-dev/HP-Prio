@@ -25,6 +25,7 @@ BEGIN
     category TEXT NOT NULL CHECK (category IN ('work', 'personal')),
     deadline TIMESTAMPTZ,
     status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done', 'archived')),
+    notes TEXT,
     ai_urgent BOOLEAN,
     ai_important BOOLEAN,
     ai_category TEXT,
@@ -36,6 +37,9 @@ BEGIN
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
+
+  -- Nâng cấp cho database tạo trước khi có cột notes. Chạy lại file này là đủ.
+  ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notes TEXT;
 
   CREATE INDEX IF NOT EXISTS idx_tasks_user_status ON tasks (user_email, status);
   CREATE INDEX IF NOT EXISTS idx_tasks_deadline ON tasks (deadline);

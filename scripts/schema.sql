@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   deadline TIMESTAMPTZ,
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done', 'archived')),
 
+  -- Ghi chú chi tiết: đường link, tài liệu, các bước cần làm
+  notes TEXT,
+
   -- AI's original suggestion (kept forever, never overwritten)
   ai_urgent BOOLEAN,
   ai_important BOOLEAN,
@@ -24,6 +27,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Nâng cấp cho database tạo trước khi có cột notes
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notes TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_tasks_user_status ON tasks (user_email, status);
 CREATE INDEX IF NOT EXISTS idx_tasks_deadline ON tasks (deadline);

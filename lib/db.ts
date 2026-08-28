@@ -21,6 +21,8 @@ export type Task = {
   category: "work" | "personal";
   deadline: string | null;
   status: "open" | "done" | "archived";
+  // Ghi chú chi tiết: đường link, tài liệu, các bước cần làm
+  notes: string | null;
   ai_urgent: boolean | null;
   ai_important: boolean | null;
   ai_category: string | null;
@@ -88,6 +90,7 @@ export async function createTask(data: {
   title: string;
   category: string;
   deadline: string | null;
+  notes: string | null;
   aiUrgent: boolean | null;
   aiImportant: boolean | null;
   aiCategory: string | null;
@@ -98,11 +101,11 @@ export async function createTask(data: {
 }) {
   const { rows } = await sql<Task>`
     INSERT INTO tasks (
-      user_email, raw_input, title, category, deadline,
+      user_email, raw_input, title, category, deadline, notes,
       ai_urgent, ai_important, ai_category, ai_deadline, ai_reasoning,
       user_urgent, user_important
     ) VALUES (
-      ${data.userEmail}, ${data.rawInput}, ${data.title}, ${data.category}, ${data.deadline},
+      ${data.userEmail}, ${data.rawInput}, ${data.title}, ${data.category}, ${data.deadline}, ${data.notes},
       ${data.aiUrgent}, ${data.aiImportant}, ${data.aiCategory}, ${data.aiDeadline}, ${data.aiReasoning},
       ${data.userUrgent}, ${data.userImportant}
     )
@@ -128,6 +131,8 @@ export async function updateTask(
     category?: string;
     // undefined = không đụng tới, null = xóa deadline
     deadline?: string | null;
+    // undefined = không đụng tới, chuỗi rỗng hoặc null = xóa ghi chú
+    notes?: string | null;
     userUrgent?: boolean;
     userImportant?: boolean;
   }
@@ -138,6 +143,10 @@ export async function updateTask(
   const clearDeadline = data.deadline === null;
   const nextDeadline = clearDeadline ? null : normalizeDeadline(data.deadline);
 
+  // Ghi chú cũng cần phân biệt như vậy, và chuỗi rỗng nghĩa là xóa trắng.
+  const suaNotes = data.notes !== undefined;
+  const nextNotes = data.notes?.trim() ? data.notes : null;
+
   const { rows } = await sql<Task>`
     UPDATE tasks SET
       title = COALESCE(${data.title ?? null}::text, title),
@@ -146,6 +155,7 @@ export async function updateTask(
         WHEN ${clearDeadline}::boolean THEN NULL
         ELSE COALESCE(${nextDeadline}::timestamptz, deadline)
       END,
+      notes = CASE WHEN ${suaNotes}::boolean THEN ${nextNotes}::text ELSE notes END,
       user_urgent = COALESCE(${data.userUrgent ?? null}::boolean, user_urgent),
       user_important = COALESCE(${data.userImportant ?? null}::boolean, user_important),
       updated_at = now()

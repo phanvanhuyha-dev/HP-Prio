@@ -51,6 +51,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (body?.title !== undefined && (typeof body.title !== "string" || !body.title.trim())) {
       return NextResponse.json({ error: "Tiêu đề không hợp lệ" }, { status: 400 });
     }
+    if (body?.notes !== undefined && body.notes !== null && typeof body.notes !== "string") {
+      return NextResponse.json({ error: "Ghi chú không hợp lệ" }, { status: 400 });
+    }
+    if (typeof body?.notes === "string" && body.notes.length > 20000) {
+      return NextResponse.json({ error: "Ghi chú quá dài (tối đa 20.000 ký tự)" }, { status: 400 });
+    }
 
     const task = await updateTask(params.id, session.user.email, {
       title: typeof body.title === "string" ? body.title.trim() : undefined,
@@ -58,6 +64,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       // Giữ nguyên sự khác biệt: không gửi trường = undefined (bỏ qua),
       // gửi null = xóa deadline.
       deadline: "deadline" in body ? body.deadline : undefined,
+      notes: "notes" in body ? body.notes : undefined,
       userUrgent: typeof body.userUrgent === "boolean" ? body.userUrgent : undefined,
       userImportant: typeof body.userImportant === "boolean" ? body.userImportant : undefined
     });

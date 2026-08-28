@@ -52,6 +52,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Nhãn phân loại không hợp lệ" }, { status: 400 });
   }
 
+  const notes = typeof body?.notes === "string" ? body.notes.trim() : "";
+  if (notes.length > 20000) {
+    return NextResponse.json({ error: "Ghi chú quá dài (tối đa 20.000 ký tự)" }, { status: 400 });
+  }
+
   try {
     const task = await createTask({
       userEmail: session.user.email,
@@ -59,6 +64,7 @@ export async function POST(req: Request) {
       title,
       category: body.category,
       deadline: normalizeDeadline(body.deadline),
+      notes: notes || null,
       aiUrgent: typeof body.aiUrgent === "boolean" ? body.aiUrgent : null,
       aiImportant: typeof body.aiImportant === "boolean" ? body.aiImportant : null,
       aiCategory: isValidCategory(body.aiCategory) ? body.aiCategory : null,

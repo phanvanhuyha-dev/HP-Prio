@@ -10,6 +10,8 @@ type ParsedTask = {
   reasoning: string;
 };
 
+type DraftTask = ParsedTask & { notes: string };
+
 // Ô <input type="datetime-local"> làm việc theo giờ máy người dùng.
 // Cắt chuỗi ISO bằng slice(0,16) sẽ hiện sai giờ khi chuỗi có offset múi giờ.
 function isoToLocalInput(iso: string | null) {
@@ -89,7 +91,7 @@ export default function TaskInput({ onSaved }: { onSaved: () => void }) {
     }
   }
 
-  async function handleConfirm(final: ParsedTask) {
+  async function handleConfirm(final: DraftTask) {
     if (!final.title.trim()) {
       setError("Tiêu đề không được để trống");
       return;
@@ -105,6 +107,7 @@ export default function TaskInput({ onSaved }: { onSaved: () => void }) {
           title: final.title.trim(),
           category: final.category,
           deadline: final.deadline,
+          notes: final.notes,
           aiUrgent: suggestion?.urgent,
           aiImportant: suggestion?.important,
           aiCategory: suggestion?.category,
@@ -230,10 +233,16 @@ function ReviewCard({
   suggestion: ParsedTask;
   saving: boolean;
   error: string | null;
-  onConfirm: (final: ParsedTask) => void;
+  onConfirm: (final: DraftTask) => void;
   onCancel: () => void;
 }) {
-  const [draft, setDraft] = useState<ParsedTask>(suggestion);
+  // Tự điền ghi chú bằng chính câu nhập gốc khi câu đó dài hơn hẳn tiêu đề.
+  // AI rút gọn thành tiêu đề ngắn, các đường link và chi tiết trong câu gốc
+  // sẽ biến mất nếu không giữ lại ở đây.
+  const [draft, setDraft] = useState<DraftTask>(() => ({
+    ...suggestion,
+    notes: original.trim().length > suggestion.title.length + 20 ? original.trim() : ""
+  }));
 
   return (
     <div
@@ -285,6 +294,23 @@ function ReviewCard({
           )}
         </div>
       </div>
+
+      <label style={fieldLabel}>
+        Ghi chú, đường link, việc cần làm
+        {draft.notes && (
+          <span style={{ color: "var(--slate)", textTransform: "none", letterSpacing: 0 }}>
+            {" "}
+            · {draft.notes.length} ký tự
+          </span>
+        )}
+      </label>
+      <textarea
+        value={draft.notes}
+        onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+        rows={5}
+        placeholder="Dán đường link tài liệu, ghi các bước cần làm, người liên quan..."
+        style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+      />
 
       <div style={{ display: "flex", gap: 20, margin: "14px 0" }}>
         <ToggleField label="Khẩn cấp" value={draft.urgent} onChange={(v) => setDraft({ ...draft, urgent: v })} color="var(--coral)" />

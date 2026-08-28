@@ -1,15 +1,18 @@
 "use client";
+import { useState } from "react";
+import Linkify from "./Linkify";
 
 export type Task = {
   id: string;
   title: string;
   category: "work" | "personal";
   deadline: string | null;
+  notes: string | null;
   user_urgent: boolean;
   user_important: boolean;
 };
 
-type ReclassifyPatch = { userUrgent?: boolean; userImportant?: boolean };
+type ReclassifyPatch = { userUrgent?: boolean; userImportant?: boolean; notes?: string | null };
 
 const QUADRANTS = [
   { key: "do", label: "Làm ngay", sub: "khẩn cấp + quan trọng", color: "var(--coral)", urgent: true, important: true },
@@ -92,9 +95,18 @@ function TaskRow({
   onReclassify: (id: string, patch: ReclassifyPatch) => void;
 }) {
   const overdue = task.deadline ? new Date(task.deadline) < new Date() : false;
+  const [moRong, setMoRong] = useState(false);
+  const [dangSua, setDangSua] = useState(false);
+  const [nhap, setNhap] = useState(task.notes ?? "");
 
   function confirmDelete() {
     if (window.confirm(`Xóa hẳn việc “${task.title}”?`)) onDelete(task.id);
+  }
+
+  function luuGhiChu() {
+    onReclassify(task.id, { notes: nhap.trim() || null });
+    setDangSua(false);
+    setMoRong(true);
   }
 
   return (
@@ -136,10 +148,94 @@ function TaskRow({
         />
       </div>
 
+      {dangSua ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <textarea
+            value={nhap}
+            onChange={(e) => setNhap(e.target.value)}
+            rows={6}
+            autoFocus
+            placeholder="Đường link, tài liệu, các bước cần làm..."
+            style={{
+              width: "100%",
+              background: "var(--field)",
+              border: "1px solid var(--line)",
+              borderRadius: 8,
+              padding: "8px 10px",
+              color: "var(--cream)",
+              fontSize: 12.5,
+              lineHeight: 1.5,
+              fontFamily: "var(--font-body)",
+              resize: "vertical"
+            }}
+          />
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={luuGhiChu} style={{ ...nutNho, background: "var(--amber)", color: "var(--navy)", border: "none", fontWeight: 600 }}>
+              Lưu
+            </button>
+            <button
+              onClick={() => {
+                setNhap(task.notes ?? "");
+                setDangSua(false);
+              }}
+              style={nutNho}
+            >
+              Hủy
+            </button>
+          </div>
+        </div>
+      ) : (
+        task.notes && moRong && (
+          <div
+            style={{
+              fontSize: 12,
+              lineHeight: 1.55,
+              color: "var(--slate)",
+              background: "rgba(0,0,0,0.18)",
+              borderRadius: 8,
+              padding: "8px 10px",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              maxHeight: 260,
+              overflowY: "auto"
+            }}
+          >
+            <Linkify text={task.notes} />
+          </div>
+        )
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span className="mono" style={{ fontSize: 10, color: "var(--slate)" }}>
-          {task.category === "work" ? "🏢 NHG" : "🏠 Cá nhân"}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="mono" style={{ fontSize: 10, color: "var(--slate)" }}>
+            {task.category === "work" ? "🏢 NHG" : "🏠 Cá nhân"}
+          </span>
+          {!dangSua &&
+            (task.notes ? (
+              <button
+                onClick={() => setMoRong((v) => !v)}
+                className="mono"
+                title={moRong ? "Thu gọn ghi chú" : "Xem ghi chú"}
+                style={{ ...nutChuThich, color: "var(--amber)" }}
+              >
+                📎 {moRong ? "Thu gọn" : "Ghi chú"}
+              </button>
+            ) : (
+              <button
+                onClick={() => setDangSua(true)}
+                className="mono"
+                title="Thêm ghi chú"
+                style={nutChuThich}
+              >
+                + Ghi chú
+              </button>
+            ))}
+          {!dangSua && task.notes && moRong && (
+            <button onClick={() => setDangSua(true)} className="mono" title="Sửa ghi chú" style={nutChuThich}>
+              Sửa
+            </button>
+          )}
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {task.deadline && (
             <span className="mono" style={{ fontSize: 10, color: overdue ? "var(--coral)" : "var(--slate)" }}>
@@ -160,6 +256,25 @@ function TaskRow({
     </div>
   );
 }
+
+const nutChuThich: React.CSSProperties = {
+  background: "none",
+  border: "none",
+  color: "var(--slate)",
+  fontSize: 10,
+  padding: 0,
+  textDecoration: "underline",
+  textUnderlineOffset: 2
+};
+
+const nutNho: React.CSSProperties = {
+  background: "transparent",
+  color: "var(--cream)",
+  border: "1px solid var(--line)",
+  borderRadius: 7,
+  padding: "5px 12px",
+  fontSize: 12
+};
 
 function MiniToggle({
   label,

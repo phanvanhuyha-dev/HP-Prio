@@ -75,7 +75,10 @@ export default function Dashboard({ userName }: { userName: string }) {
     );
   }
 
-  function handleReclassify(id: string, patch: { userUrgent?: boolean; userImportant?: boolean }) {
+  function handleReclassify(
+    id: string,
+    patch: { userUrgent?: boolean; userImportant?: boolean; notes?: string | null }
+  ) {
     return mutate(
       (prev) =>
         prev.map((t) =>
@@ -83,7 +86,9 @@ export default function Dashboard({ userName }: { userName: string }) {
             ? {
                 ...t,
                 user_urgent: patch.userUrgent ?? t.user_urgent,
-                user_important: patch.userImportant ?? t.user_important
+                user_important: patch.userImportant ?? t.user_important,
+                // notes có thể là null (xóa trắng) nên phải dùng "in", không dùng ??
+                notes: "notes" in patch ? patch.notes ?? null : t.notes
               }
             : t
         ),
