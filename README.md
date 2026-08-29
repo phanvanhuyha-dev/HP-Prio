@@ -106,6 +106,11 @@ git push -u origin main
 
 **Lưu ý:** Web Push trên iPhone chỉ hoạt động với iOS ≥ 16.4, và **chỉ khi mở từ icon Home Screen** (mở qua tab Safari thường sẽ không nhận được thông báo).
 
+Yêu cầu kỹ thuật để icon và chế độ toàn màn hình chạy đúng trên iOS (đã có sẵn trong code, ghi lại để sau này khỏi vô tình bỏ đi):
+- Thẻ `apple-touch-icon`: iOS **không** đọc icon từ `manifest.json`. Thiếu thẻ này thì iPhone lấy ảnh chụp trang làm icon.
+- Icon phải là PNG **không có kênh trong suốt**, nếu không iOS tô nền đen vào vùng trong suốt.
+- `padding-top: env(safe-area-inset-top)` trên `body`: ở chế độ toàn màn hình, thanh trạng thái đè lên nội dung.
+
 ---
 
 ## 6. Về lịch chạy nhắc deadline (Cron)

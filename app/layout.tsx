@@ -8,6 +8,15 @@ export const metadata: Metadata = {
   description:
     "Trợ lý ưu tiên hóa công việc cá nhân: nói ra việc cần làm, AI tự phân loại khẩn cấp/quan trọng, bạn duyệt và hành động.",
   manifest: "/manifest.json",
+  // iOS KHÔNG đọc icon từ manifest.json. Thiếu apple-touch-icon thì khi thêm
+  // vào màn hình chính, iPhone lấy ảnh chụp trang làm icon, nhìn rất xấu.
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" }
+    ],
+    apple: [{ url: "/icons/icon-192.png", sizes: "180x180", type: "image/png" }]
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
