@@ -15,8 +15,9 @@ export const CAU_LENH_SCHEMA: string[] = [
      title TEXT NOT NULL,
      category TEXT NOT NULL CHECK (category IN ('work', 'personal')),
      deadline TIMESTAMPTZ,
-     status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done', 'archived')),
+     status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done', 'archived', 'deleted')),
      notes TEXT,
+     deleted_at TIMESTAMPTZ,
      ai_urgent BOOLEAN,
      ai_important BOOLEAN,
      ai_category TEXT,
@@ -31,6 +32,15 @@ export const CAU_LENH_SCHEMA: string[] = [
 
   // Nâng cấp cho bảng tạo từ phiên bản cũ hơn code
   `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notes TEXT`,
+  `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`,
+
+  // Xóa mềm: thêm trạng thái 'deleted' vào ràng buộc CHECK.
+  // Cặp DROP IF EXISTS rồi ADD là idempotent, chạy lại bao nhiêu lần cũng được.
+  `ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_status_check`,
+  `ALTER TABLE tasks ADD CONSTRAINT tasks_status_check
+     CHECK (status IN ('open', 'done', 'archived', 'deleted'))`,
+
+  `CREATE INDEX IF NOT EXISTS idx_tasks_deleted ON tasks (deleted_at) WHERE status = 'deleted'`,
 
   `CREATE INDEX IF NOT EXISTS idx_tasks_user_status ON tasks (user_email, status)`,
   `CREATE INDEX IF NOT EXISTS idx_tasks_deadline ON tasks (deadline)`,
@@ -53,7 +63,7 @@ export const CAU_LENH_SCHEMA: string[] = [
 export const COT_BAT_BUOC: Record<string, string[]> = {
   tasks: [
     "id", "user_email", "raw_input", "title", "category", "deadline", "status",
-    "notes", "ai_urgent", "ai_important", "ai_category", "ai_deadline",
+    "notes", "deleted_at", "ai_urgent", "ai_important", "ai_category", "ai_deadline",
     "ai_reasoning", "user_urgent", "user_important", "reminder_sent_at",
     "created_at", "updated_at"
   ],

@@ -98,16 +98,21 @@ select option:hover {
   border: 0;
 }
 
-/* Ma trận 4 ô: 1 cột trên màn hẹp, 2 cột từ 560px trở lên. Ép 2 cột ở 390px
-   làm tiêu đề việc gãy 4 dòng và các nút nhỏ dính sát nhau. */
+/* Ma trận LUÔN giữ bố cục 2x2 ở mọi bề rộng. Chính vị trí trên/dưới, trái/phải
+   mới là thứ truyền tải ý nghĩa của ma trận Eisenhower; xếp thành một cột dọc
+   là mất hết. Màn hẹp thì rút gọn nội dung thẻ chứ không đổi bố cục. */
 .quadrants {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
-@media (min-width: 560px) {
-  .quadrants { grid-template-columns: 1fr 1fr; }
+@media (max-width: 559px) {
+  .quadrants { gap: 8px; }
+  .quadrants > section { padding: 10px !important; }
+  /* Ẩn phụ đề và câu gợi ý để nhường chỗ cho tiêu đề việc */
+  .o-phu-de,
+  .o-goi-y { display: none; }
 }
 
 @keyframes quay { to { transform: rotate(360deg); } }

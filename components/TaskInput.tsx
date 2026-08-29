@@ -97,6 +97,9 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
   function boQuaAI() {
     const raw = text.trim();
     if (!raw) return;
+    // Đang chờ AI mà bấm nút này thì hủy luôn request, không bắt bấm Dừng trước.
+    // Đây đúng lúc người dùng sốt ruột nhất, bớt được một bước.
+    abortRef.current?.abort();
     const dongDau = raw.split("\n")[0].trim();
     setDungAI(false);
     setError(null);
@@ -271,8 +274,8 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
           {/* Đường thoát khỏi nút thắt chờ AI: việc đơn giản thì lưu thẳng. */}
           <button
             onClick={boQuaAI}
-            disabled={!text.trim() || loading}
-            title="Tự điền các trường, không chờ AI"
+            disabled={!text.trim()}
+            title={loading ? "Dừng AI và tự điền các trường" : "Tự điền các trường, không chờ AI"}
             style={{
               background: "transparent",
               color: "var(--cream)",
@@ -281,7 +284,7 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
               padding: "12px 16px",
               fontSize: 13,
               minHeight: 44,
-              opacity: !text.trim() || loading ? 0.5 : 1
+              opacity: !text.trim() ? 0.5 : 1
             }}
           >
             Bỏ qua AI

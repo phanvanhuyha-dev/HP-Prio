@@ -136,8 +136,9 @@ export default function PushSetup() {
             border: "1px solid var(--line)",
             color: "var(--cream)",
             borderRadius: 8,
-            padding: "8px 14px",
+            padding: "11px 16px",
             fontSize: 13,
+            minHeight: 44,
             opacity: busy ? 0.6 : 1
           }}
         >

@@ -5,6 +5,7 @@ import {
   markReminderSent,
   getPushSubscriptions,
   deletePushSubscription,
+  purgeOldDeleted,
   type StoredPushSubscription
 } from "@/lib/db";
 import { sendPush, isPushConfigured } from "@/lib/push";
@@ -46,6 +47,14 @@ export async function GET(req: Request) {
   if (!isPushConfigured()) {
     console.error("Thiếu khóa VAPID — không gửi được thông báo.");
     return NextResponse.json({ error: "push chưa được cấu hình" }, { status: 500 });
+  }
+
+  // Dọn hẳn việc đã xóa mềm quá 30 ngày. Không chặn phần nhắc deadline nếu lỗi.
+  let daDon = 0;
+  try {
+    daDon = await purgeOldDeleted(30);
+  } catch (err) {
+    console.error("Purge deleted tasks error:", err);
   }
 
   try {
@@ -101,7 +110,8 @@ export async function GET(req: Request) {
       ok: true,
       tasksDue: dueTasks.length,
       remindersSent: notified,
-      expiredSubscriptionsRemoved: pruned
+      expiredSubscriptionsRemoved: pruned,
+      deletedTasksPurged: daDon
     });
   } catch (err) {
     console.error("Cron reminders error:", err);

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { signOut } from "next-auth/react";
 import { docLoi, loiThanThien } from "@/lib/client-api";
 import TaskInput from "./TaskInput";
@@ -12,22 +12,7 @@ export default function Dashboard({ userName }: { userName: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [daLuu, setDaLuu] = useState<string | null>(null);
-  const [hoanTac, setHoanTac] = useState<
-    { task: Task; loai: "xong" | "xoa"; hen?: ReturnType<typeof setTimeout> } | null
-  >(null);
-  const hoanTacRef = useRef(hoanTac);
-  hoanTacRef.current = hoanTac;
-
-  // Rời trang trong lúc còn hẹn xóa thì gửi lệnh xóa luôn, không để treo lơ lửng.
-  useEffect(() => {
-    return () => {
-      const h = hoanTacRef.current;
-      if (h?.loai === "xoa" && h.hen) {
-        clearTimeout(h.hen);
-        navigator.sendBeacon?.(`/api/tasks/${h.task.id}`);
-      }
-    };
-  }, []);
+  const [hoanTac, setHoanTac] = useState<{ task: Task; loai: "xong" | "xoa" } | null>(null);
 
   function handleSaved(tieuDe: string) {
     setDaLuu(tieuDe);
@@ -93,30 +78,29 @@ export default function Dashboard({ userName }: { userName: string }) {
     );
   }
 
-  // Xóa thì không đảo ngược được sau khi đã gửi lệnh, nên HOÃN gửi 6 giây.
-  // Trong lúc đó việc đã biến khỏi ma trận và người dùng có thể lấy lại.
+  // Xóa nay là XÓA MỀM ở phía máy chủ: việc chuyển sang trạng thái 'deleted'
+  // và được dọn hẳn sau 30 ngày. Nhờ vậy hoàn tác không còn phụ thuộc vào một
+  // đồng hồ đếm ngược trong trình duyệt: đóng tab rồi vẫn khôi phục được.
   function xoaCoHoanTac(task: Task) {
-    setTasks((prev) => prev.filter((t) => t.id !== task.id));
-    setError(null);
-
-    const hen = setTimeout(async () => {
-      setHoanTac((h) => (h?.task.id === task.id ? null : h));
-      try {
-        const res = await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
-        if (!res.ok && res.status !== 404) throw new Error(await docLoi(res));
-      } catch (e: any) {
-        await loadTasks();
-        setError(loiThanThien(e));
-      }
-    }, 6000);
-
-    setHoanTac({ task, loai: "xoa", hen });
+    setHoanTac({ task, loai: "xoa" });
+    setTimeout(() => setHoanTac((h) => (h?.task.id === task.id ? null : h)), 8000);
+    return mutate(
+      (prev) => prev.filter((t) => t.id !== task.id),
+      () => fetch(`/api/tasks/${task.id}`, { method: "DELETE" })
+    );
   }
 
-  function huyXoa(h: { task: Task; hen: ReturnType<typeof setTimeout> }) {
-    clearTimeout(h.hen);
+  function khoiPhuc(task: Task) {
     setHoanTac(null);
-    setTasks((prev) => (prev.some((t) => t.id === h.task.id) ? prev : [h.task, ...prev]));
+    return mutate(
+      (prev) => (prev.some((t) => t.id === task.id) ? prev : [task, ...prev]),
+      () =>
+        fetch(`/api/tasks/${task.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "open" })
+        })
+    );
   }
 
   function handleDone(id: string) {
@@ -238,14 +222,10 @@ export default function Dashboard({ userName }: { userName: string }) {
           }}
         >
           <span style={{ fontSize: 13, color: "var(--cream)" }}>
-            {hoanTac.loai === "xong" ? "Đã đánh dấu xong" : "Đang xóa"} “{hoanTac.task.title}”
+            {hoanTac.loai === "xong" ? "Đã đánh dấu xong" : "Đã xóa"} “{hoanTac.task.title}”
           </span>
           <button
-            onClick={() =>
-              hoanTac.loai === "xong"
-                ? hoanTacXong(hoanTac.task)
-                : huyXoa(hoanTac as { task: Task; hen: ReturnType<typeof setTimeout> })
-            }
+            onClick={() => (hoanTac.loai === "xong" ? hoanTacXong(hoanTac.task) : khoiPhuc(hoanTac.task))}
             style={{
               background: "transparent",
               border: "1px solid var(--amber)",

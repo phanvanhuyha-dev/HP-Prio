@@ -21,9 +21,10 @@ export type Task = {
   title: string;
   category: "work" | "personal";
   deadline: string | null;
-  status: "open" | "done" | "archived";
+  status: "open" | "done" | "archived" | "deleted";
   // Ghi chú chi tiết: đường link, tài liệu, các bước cần làm
   notes: string | null;
+  deleted_at: string | null;
   ai_urgent: boolean | null;
   ai_important: boolean | null;
   ai_category: string | null;
@@ -71,7 +72,7 @@ async function chayVaTuSua<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 export const TASK_CATEGORIES = ["work", "personal"] as const;
-export const TASK_STATUSES = ["open", "done", "archived"] as const;
+export const TASK_STATUSES = ["open", "done", "archived", "deleted"] as const;
 
 export type TaskCategory = (typeof TASK_CATEGORIES)[number];
 export type TaskStatus = (typeof TASK_STATUSES)[number];
@@ -208,12 +209,54 @@ export async function updateTask(
   });
 }
 
+// XÓA MỀM. Đây là con đường mất dữ liệu duy nhất còn lại của app, nên không
+// xóa thật: chỉ đổi trạng thái và ghi mốc thời gian. Bấm nhầm vẫn lấy lại được
+// kể cả sau khi đã đóng trình duyệt.
 export async function deleteTask(id: string, userEmail: string) {
   return chayVaTuSua(async () => {
     const { rowCount } = await sql`
-      DELETE FROM tasks WHERE id = ${id} AND user_email = ${userEmail}
+      UPDATE tasks
+      SET status = 'deleted', deleted_at = now(), updated_at = now()
+      WHERE id = ${id} AND user_email = ${userEmail} AND status <> 'deleted'
     `;
     return (rowCount ?? 0) > 0;
+  });
+}
+
+// Khôi phục việc đã xóa mềm.
+export async function restoreTask(id: string, userEmail: string) {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<Task>`
+      UPDATE tasks
+      SET status = 'open', deleted_at = NULL, updated_at = now()
+      WHERE id = ${id} AND user_email = ${userEmail}
+      RETURNING *
+    `;
+    return rows[0] ?? null;
+  });
+}
+
+export async function listDeletedTasks(userEmail: string) {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<Task>`
+      SELECT * FROM tasks
+      WHERE user_email = ${userEmail} AND status = 'deleted'
+      ORDER BY deleted_at DESC
+    `;
+    return rows;
+  });
+}
+
+// Dọn hẳn các việc đã xóa quá 30 ngày. Cron gọi mỗi ngày.
+export async function purgeOldDeleted(soNgay = 30) {
+  return chayVaTuSua(async () => {
+    const { rowCount } = await sql`
+      DELETE FROM tasks
+      WHERE status = 'deleted'
+        AND deleted_at IS NOT NULL
+        AND deleted_at < now() - (${soNgay} * interval '1 day')
+    `;
+    return rowCount ?? 0;
   });
 }
 

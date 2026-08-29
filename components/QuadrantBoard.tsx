@@ -110,11 +110,14 @@ export default function QuadrantBoard({
               >
                 {q.label}
               </h3>
+              {/* Trên màn hẹp, hai dòng này bị ẩn (xem .o-phu-de / .o-goi-y trong
+                  globals.css) để nhường chỗ cho tiêu đề việc, nhưng bố cục 2x2
+                  vẫn giữ nguyên. Số lượng việc luôn hiện. */}
               <div className="mono" style={{ fontSize: 11, color: "var(--slate)", textTransform: "uppercase" }}>
-                {q.sub} · {items.length}
+                <span className="o-phu-de">{q.sub} · </span>
+                {items.length} việc
               </div>
-              {/* Ô nào cũng cần nói rõ nên làm gì với việc nằm trong đó */}
-              <div style={{ fontSize: 11.5, color: "var(--slate)", marginTop: 3, lineHeight: 1.35 }}>
+              <div className="o-goi-y" style={{ fontSize: 11.5, color: "var(--slate)", marginTop: 3, lineHeight: 1.35 }}>
                 {q.goiY}
               </div>
             </div>
@@ -326,8 +329,8 @@ const nutChuThich: React.CSSProperties = {
   border: "none",
   color: "var(--slate)",
   fontSize: 11.5,
-  padding: "6px 2px",
-  minHeight: 32,
+  padding: "6px 4px",
+  minHeight: 44,
   textDecoration: "underline",
   textUnderlineOffset: 2
 };
@@ -361,11 +364,12 @@ function MiniToggle({
         background: active ? color : "transparent",
         border: `1px solid ${active ? color : "var(--line)"}`,
         borderRadius: 999,
-        padding: "2px 8px",
+        padding: "2px 12px",
         fontSize: 11,
         letterSpacing: "0.03em",
         textTransform: "uppercase",
-        minHeight: 30,
+        // 44px theo WCAG 2.5.5. Đây là thao tác hay dùng nhất trên điện thoại.
+        minHeight: 44,
         color: active ? "var(--navy)" : "var(--slate)",
         fontWeight: active ? 700 : 500
       }}
