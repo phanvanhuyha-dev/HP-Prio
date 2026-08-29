@@ -39,7 +39,10 @@ export async function GET() {
       ? `${process.env.GEMINI_MODEL.trim()} (ghim thủ công)`
       : `${modelDangDung()} (tự chọn)`,
     // Biết chắc bản deploy đang chạy là commit nào, khỏi đoán code đã lên chưa
-    commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "không rõ"
+    commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "không rõ",
+    // Hàm và database nằm khác châu lục là cộng thêm hàng trăm mili giây cho
+    // MỌI thao tác. Hiện ra đây để đối chiếu với region của Neon.
+    vungChayHam: process.env.VERCEL_REGION ?? "không rõ (chạy ở máy)"
   };
 
   // --- Database ---
@@ -47,9 +50,13 @@ export async function GET() {
   try {
     // Tự vá cấu trúc trước khi kiểm tra, để trang này vừa chẩn đoán vừa sửa.
     await damBaoSchema();
+    const batDauDb = Date.now();
     const s = await checkSchema();
     database = {
       ketNoi: true,
+      // Sàn hạ tầng cộng vào mọi thao tác. Nếu số này cao thì nhiều khả năng
+      // database và hàm đang nằm ở hai vùng khác nhau.
+      msMotTruyVan: Date.now() - batDauDb,
       bangTasks: s.tasks,
       bangPushSubscriptions: s.push_subscriptions,
       // Kiểm tới từng cột. Trước đây chỉ xem bảng có tồn tại không nên báo
@@ -68,9 +75,18 @@ export async function GET() {
     gemini = { hoatDong: false, loi: "Chưa cấu hình GEMINI_API_KEY." };
   } else {
     try {
-      const { parseTaskInput } = await import("@/lib/gemini");
+      const { parseTaskInput, thoiGianGoiGanNhat } = await import("@/lib/gemini");
+      const batDau = Date.now();
       await parseTaskInput("kiểm tra hệ thống");
-      gemini = { hoatDong: true };
+      const tong = Date.now() - batDau;
+      const cuaGemini = thoiGianGoiGanNhat();
+      gemini = {
+        hoatDong: true,
+        // Tách bạch phần Gemini với phần còn lại, khỏi phải suy ra bằng phép trừ.
+        msGoiGemini: cuaGemini,
+        msTongHam: tong,
+        msXuLyPhiaApp: cuaGemini !== null ? tong - cuaGemini : null
+      };
     } catch (err) {
       const m = describeGeminiError(err);
       gemini = { hoatDong: false, loi: m.nguoiDung, khacPhuc: m.khacPhuc };

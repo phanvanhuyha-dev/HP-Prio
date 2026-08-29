@@ -13,8 +13,9 @@ type ParsedTask = {
 
 type DraftTask = ParsedTask & { notes: string };
 
-// Gọi AI có thể mất 30-50s. Quá mốc này thì dừng hẳn để người dùng không chờ vô hạn.
-const HAN_CHO_MS = 60000;
+// Đo thực tế: parse mất 1.2-3.7s. Để 30s là dư sức cho cả trường hợp khởi động
+// nguội cộng Gemini chậm, mà vẫn báo lỗi sớm khi request thật sự treo.
+const HAN_CHO_MS = 30000;
 
 // Ô <input type="datetime-local"> làm việc theo giờ máy người dùng.
 // Cắt chuỗi ISO bằng slice(0,16) sẽ hiện sai giờ khi chuỗi có offset múi giờ.
@@ -350,7 +351,7 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
 
       {loading && (
         <p style={{ fontSize: 12, color: "var(--slate)", marginTop: 10, marginBottom: 0 }}>
-          AI thường mất 20 đến 50 giây. Anh có thể bấm Dừng rồi chọn “Bỏ qua AI” để tự nhập.
+          AI thường trả lời trong 2 đến 4 giây. Lâu hơn thì anh bấm “Bỏ qua AI” để tự nhập.
         </p>
       )}
 

@@ -8,6 +8,8 @@ type Analysis = {
   risks: string[];
 };
 
+// Đo thực tế: 1 việc ~2.4s, 20 việc ~6.4s, ngoại suy 40-50 việc có thể 10-15s.
+// Giữ 60s để không cắt nhầm khi tồn đọng nhiều việc.
 const HAN_CHO_MS = 60000;
 
 export default function AnalysisPanel() {
@@ -115,7 +117,7 @@ export default function AnalysisPanel() {
 
       {loading && (
         <p style={{ fontSize: 12, color: "var(--slate)", marginTop: 10, marginBottom: 0 }}>
-          Việc càng nhiều thì càng lâu, thường 20 đến 50 giây.
+          Việc càng nhiều thì càng lâu: vài việc mất 2 đến 3 giây, khoảng 20 việc mất 5 đến 8 giây.
         </p>
       )}
 

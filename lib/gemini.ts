@@ -87,16 +87,36 @@ function laLoiKhongTatDuocThinking(err: any) {
   return maLoi(err) === 400 && /thinking|thinkingBudget|thinkingConfig|INVALID_ARGUMENT/i.test(msg);
 }
 
+// Thời gian của lượt gọi Gemini gần nhất, tính bằng mili giây.
+// Đo trực tiếp quanh lệnh gọi để tách bạch phần Gemini với phần hạ tầng
+// (mạng, khởi động serverless, truy vấn database). Không có số này thì chỉ
+// suy ra được bằng phép trừ, không đủ tin để tối ưu.
+let msGoiGanNhat: number | null = null;
+
+export function thoiGianGoiGanNhat() {
+  return msGoiGanNhat;
+}
+
 async function goiModel(model: string, prompt: string, tatThinking: boolean) {
-  const res = await taoClient().models.generateContent({
-    model,
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      ...(tatThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {})
-    }
-  });
-  return res.text ?? "";
+  const batDau = Date.now();
+  try {
+    const res = await taoClient().models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        ...(tatThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+      }
+    });
+    return res.text ?? "";
+  } finally {
+    msGoiGanNhat = Date.now() - batDau;
+    // Xem trong Vercel Logs để đối chiếu với thời gian tổng của request.
+    console.log(
+      `[HPPrio] Gemini ${model} ${tatThinking ? "(tắt suy luận)" : "(mặc định)"}: ` +
+        `${msGoiGanNhat}ms, prompt ${prompt.length} ký tự`
+    );
+  }
 }
 
 // Dù đã đặt responseMimeType JSON, model vẫn có thể bọc kết quả trong ```json.
@@ -245,8 +265,11 @@ export async function analyzeTasks(tasks: unknown[]): Promise<TaskAnalysis> {
   // Thay {{TODAY}} trước để placeholder không bị dò trúng bên trong dữ liệu task.
   // {{TASKS}} dùng function replacer: nếu truyền chuỗi, các mẫu $$, $&, $', $`
   // trong tiêu đề công việc sẽ bị String.replace diễn giải và làm hỏng prompt.
+  // JSON.stringify(tasks, null, 2) in đẹp bằng 2 dấu cách mỗi cấp. Với 20 việc
+  // thì riêng khoảng trắng và xuống dòng đã chiếm phần đáng kể số token đầu vào,
+  // mà model không cần nó để đọc. Bỏ tham số in đẹp là cắt được luôn.
   const prompt = ANALYSIS_PROMPT.replace("{{TODAY}}", iso).replace("{{TASKS}}", () =>
-    JSON.stringify(tasks, null, 2)
+    JSON.stringify(tasks)
   );
 
   const parsed = await sinhJson(prompt);
