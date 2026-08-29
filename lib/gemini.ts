@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { normalizeDeadline } from "./db";
 
 // KHÔNG ghim tên model theo phiên bản. Google liên tục ngừng cấp model cũ cho
@@ -32,48 +32,22 @@ export function chonModelTot(models: string[]): string | null {
   return batKyGemini[0] ?? ungVien[0];
 }
 
-// Khởi tạo trễ: không tạo client ở cấp module để việc thiếu GEMINI_API_KEY
-// không làm hỏng bước build của Next.js.
 let tenModelDangDung: string | null = null;
+
+// Các model dòng 2.5 trở lên BẬT SẴN chế độ suy luận (thinking), thứ ngốn phần
+// lớn trong 23-49 giây mỗi lượt gọi. App này chỉ cần trích xuất vài trường JSON
+// từ một câu tiếng Việt, không cần suy luận nhiều bước, nên tắt đi.
+// Model nào không cho tắt sẽ trả 400, khi đó tự bỏ tham số này và nhớ luôn.
+let tatDuocThinking = true;
 
 export function modelDangDung() {
   return process.env.GEMINI_MODEL?.trim() || tenModelDangDung || BI_DANH_MAC_DINH;
 }
 
-function taoModel(ten: string) {
+function taoClient() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("Thiếu GEMINI_API_KEY");
-  return new GoogleGenerativeAI(apiKey).getGenerativeModel({
-    model: ten,
-    generationConfig: { responseMimeType: "application/json" }
-  });
-}
-
-function laLoiKhongCoModel(err: any) {
-  const msg = String(err?.message ?? err);
-  return err?.status === 404 || /is not found for API version|models\/.* not found/i.test(msg);
-}
-
-// Gọi Gemini, nếu model hiện tại không dùng được thì tự hỏi Google xem còn
-// model nào rồi gọi lại. Người dùng không phải sửa cấu hình mỗi lần Google
-// đổi danh mục model.
-async function sinhJson(prompt: string): Promise<any> {
-  try {
-    const res = await taoModel(modelDangDung()).generateContent(prompt);
-    return parseJsonResponse(res.response.text());
-  } catch (err) {
-    // GEMINI_MODEL do người dùng chỉ định thì tôn trọng, không tự đổi.
-    if (!laLoiKhongCoModel(err) || process.env.GEMINI_MODEL?.trim()) throw err;
-
-    const ds = await listAvailableModels();
-    const chon = chonModelTot(ds);
-    if (!chon) throw err;
-
-    console.warn(`[HPPrio] Model "${modelDangDung()}" không dùng được, chuyển sang "${chon}".`);
-    tenModelDangDung = chon;
-    const res = await taoModel(chon).generateContent(prompt);
-    return parseJsonResponse(res.response.text());
-  }
+  return new GoogleGenAI({ apiKey });
 }
 
 // Hỏi thẳng Google xem API key này dùng được những model nào.
@@ -97,6 +71,76 @@ export async function listAvailableModels(): Promise<string[]> {
     .map((m: any) => String(m.name).replace(/^models\//, ""));
 }
 
+function maLoi(err: any): number | undefined {
+  const msg = String(err?.message ?? err);
+  return err?.status ?? (msg.match(/\[?(\d{3})[\s\]]/)?.[1] ? Number(msg.match(/\[?(\d{3})[\s\]]/)![1]) : undefined);
+}
+
+function laLoiKhongCoModel(err: any) {
+  const msg = String(err?.message ?? err);
+  return maLoi(err) === 404 || /is not found for API version|models\/.* not found|NOT_FOUND/i.test(msg);
+}
+
+// Model từ chối tham số thinkingConfig
+function laLoiKhongTatDuocThinking(err: any) {
+  const msg = String(err?.message ?? err);
+  return maLoi(err) === 400 && /thinking|thinkingBudget|thinkingConfig|INVALID_ARGUMENT/i.test(msg);
+}
+
+async function goiModel(model: string, prompt: string, tatThinking: boolean) {
+  const res = await taoClient().models.generateContent({
+    model,
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      ...(tatThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+    }
+  });
+  return res.text ?? "";
+}
+
+// Dù đã đặt responseMimeType JSON, model vẫn có thể bọc kết quả trong ```json.
+function parseJsonResponse(text: string) {
+  const cleaned = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/, "")
+    .trim();
+  return JSON.parse(cleaned);
+}
+
+// Gọi Gemini với hai lớp tự phục hồi:
+//  1. Model từ chối tắt thinking  -> gọi lại không kèm tham số đó, nhớ để lần sau
+//  2. Model không tồn tại (404)   -> hỏi Google model nào dùng được rồi đổi sang
+async function sinhJson(prompt: string): Promise<any> {
+  const goi = async (model: string) => {
+    try {
+      return await goiModel(model, prompt, tatDuocThinking);
+    } catch (err) {
+      if (tatDuocThinking && laLoiKhongTatDuocThinking(err)) {
+        console.warn(`[HPPrio] Model "${model}" không cho tắt thinking, gọi lại theo mặc định.`);
+        tatDuocThinking = false;
+        return await goiModel(model, prompt, false);
+      }
+      throw err;
+    }
+  };
+
+  try {
+    return parseJsonResponse(await goi(modelDangDung()));
+  } catch (err) {
+    // GEMINI_MODEL do người dùng chỉ định thì tôn trọng, không tự đổi.
+    if (!laLoiKhongCoModel(err) || process.env.GEMINI_MODEL?.trim()) throw err;
+
+    const chon = chonModelTot(await listAvailableModels());
+    if (!chon) throw err;
+
+    console.warn(`[HPPrio] Model "${modelDangDung()}" không dùng được, chuyển sang "${chon}".`);
+    tenModelDangDung = chon;
+    return parseJsonResponse(await goi(chon));
+  }
+}
+
 export type ParsedTask = {
   title: string;
   category: "work" | "personal";
@@ -112,7 +156,6 @@ const WEEKDAYS_VI = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Th�
 // bảo với AI đó là giờ Việt Nam thì sau 17h chiều VN, AI sẽ hiểu sai ngày hôm nay
 // và tính "ngày mai", "thứ 6 tuần này" lệch mất một ngày.
 function nowInVietnam() {
-  // Locale "sv-SE" cho ra đúng dạng "YYYY-MM-DD HH:mm:ss".
   const formatted = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Asia/Ho_Chi_Minh",
     year: "numeric",
@@ -150,16 +193,6 @@ và trả về JSON với các trường:
 
 Chỉ trả JSON, không thêm chữ nào khác.`;
 
-// Dù đã đặt responseMimeType JSON, model vẫn có thể bọc kết quả trong ```json.
-function parseJsonResponse(text: string) {
-  const cleaned = text
-    .trim()
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/```\s*$/, "")
-    .trim();
-  return JSON.parse(cleaned);
-}
-
 export async function parseTaskInput(rawInput: string): Promise<ParsedTask> {
   const { iso, weekday } = nowInVietnam();
   const prompt =
@@ -168,9 +201,10 @@ export async function parseTaskInput(rawInput: string): Promise<ParsedTask> {
 
   const parsed = await sinhJson(prompt);
 
-  const title = typeof parsed.title === "string" && parsed.title.trim()
-    ? parsed.title.trim().slice(0, 200)
-    : rawInput.slice(0, 80);
+  const title =
+    typeof parsed.title === "string" && parsed.title.trim()
+      ? parsed.title.trim().slice(0, 200)
+      : rawInput.slice(0, 80);
 
   return {
     title,
@@ -211,9 +245,8 @@ export async function analyzeTasks(tasks: unknown[]): Promise<TaskAnalysis> {
   // Thay {{TODAY}} trước để placeholder không bị dò trúng bên trong dữ liệu task.
   // {{TASKS}} dùng function replacer: nếu truyền chuỗi, các mẫu $$, $&, $', $`
   // trong tiêu đề công việc sẽ bị String.replace diễn giải và làm hỏng prompt.
-  const prompt = ANALYSIS_PROMPT.replace("{{TODAY}}", iso).replace(
-    "{{TASKS}}",
-    () => JSON.stringify(tasks, null, 2)
+  const prompt = ANALYSIS_PROMPT.replace("{{TODAY}}", iso).replace("{{TASKS}}", () =>
+    JSON.stringify(tasks, null, 2)
   );
 
   const parsed = await sinhJson(prompt);

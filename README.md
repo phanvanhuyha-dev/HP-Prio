@@ -69,11 +69,15 @@ git push -u origin main
    **Bắt buộc phải điền đủ**, đặc biệt là hai khóa VAPID: thiếu chúng thì bản build trên Vercel sẽ hỏng, không phải chỉ mất tính năng thông báo. Thiếu `OWNER_EMAIL` thì app khóa toàn bộ đăng nhập (chặn mặc định cho an toàn).
 
    **Đừng tạo biến `GEMINI_MODEL`.** App tự chọn model dùng được: mặc định dùng bí danh `gemini-flash-latest` (Google tự trỏ sang bản mới nhất), và nếu bí danh đó hỏng thì tự hỏi Google xem key còn model nào rồi chuyển sang, không cần deploy lại. Ghim một tên phiên bản cụ thể là hỏng app sau vài tháng, vì Google liên tục ngừng cấp model cũ. Chỉ điền biến này khi cần ép dùng đúng một model nào đó.
+
+   App cũng tự **tắt chế độ suy luận (thinking)** của model. Các model dòng 2.5 trở lên bật sẵn tính năng này, ngốn phần lớn thời gian chờ. App chỉ cần trích vài trường JSON từ một câu tiếng Việt nên không cần suy luận nhiều bước. Model nào không cho tắt thì app tự gọi lại theo mặc định.
 4. Bấm **Deploy**.
 5. Sau khi có domain thật (vd `hpprio-xyz.vercel.app`):
    - Quay lại Google Cloud Console, thêm redirect URI: `https://hpprio-xyz.vercel.app/api/auth/callback/google`
    - Cập nhật lại `NEXTAUTH_URL` trong Vercel = domain thật → Redeploy.
-6. Tạo bảng trong database. Có hai cách, chọn một:
+6. **Tạo bảng: không cần làm gì cả.** App tự tạo bảng và tự thêm cột còn thiếu ngay lần đầu ghi dữ liệu. Mọi câu lệnh đều chỉ cộng thêm, không xóa cột, không xóa dữ liệu.
+
+   Muốn tạo trước bằng tay thì vẫn được, chọn một trong hai cách:
 
    **Cách A, dán SQL trên web (nhanh nhất, không cần cài gì):**
    - Mở database vừa tạo (trên Vercel: **Storage > Query**, hoặc trên Neon Console: **Query**)
