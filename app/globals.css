@@ -103,8 +103,30 @@ select option:hover {
    là mất hết. Màn hẹp thì rút gọn nội dung thẻ chứ không đổi bố cục. */
 .quadrants {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* PHẢI là minmax(0, 1fr) chứ không phải 1fr. Ô lưới mặc định có
+     min-width: auto, nghĩa là không co nhỏ hơn từ dài nhất bên trong. Một tiêu
+     đề việc dài là đủ làm cột phình ra và cả trang tràn ngang trên điện thoại. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
+}
+
+/* Chốt thứ hai: cho phép ngắt giữa từ khi cần, để không từ nào ép rộng cột. */
+.quadrants section,
+.viec-tieu-de {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Danh sách việc trong mỗi ô tự cuộn. Giá trị của ma trận Eisenhower là nhìn
+   thấy cả 4 góc cùng lúc; để ô dài ra tự do thì phải cuộn 3-4 màn hình mới
+   thấy hết, mất hẳn ý nghĩa so sánh. */
+.o-danh-sach {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 @media (max-width: 559px) {
@@ -113,6 +135,7 @@ select option:hover {
   /* Ẩn phụ đề và câu gợi ý để nhường chỗ cho tiêu đề việc */
   .o-phu-de,
   .o-goi-y { display: none; }
+  .o-danh-sach { max-height: 38vh; }
 }
 
 @keyframes quay { to { transform: rotate(360deg); } }

@@ -7,6 +7,7 @@ import QuadrantBoard, { type Task } from "./QuadrantBoard";
 import AnalysisPanel from "./AnalysisPanel";
 import PushSetup from "./PushSetup";
 import TrashPanel from "./TrashPanel";
+import DonePanel from "./DonePanel";
 
 export default function Dashboard({ userName }: { userName: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -293,6 +294,14 @@ export default function Dashboard({ userName }: { userName: string }) {
           onReclassify={handleReclassify}
         />
       )}
+
+      <DonePanel
+        moiLamMoi={nhipLamMoi}
+        onDoiTrangThai={() => {
+          loadTasks();
+          setNhipLamMoi((n) => n + 1);
+        }}
+      />
 
       <TrashPanel
         moiLamMoi={nhipLamMoi}

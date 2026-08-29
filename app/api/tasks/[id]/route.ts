@@ -46,6 +46,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ task });
     }
 
+    // Chỉ nhận đúng những tên trường này. Trước đây gửi sai tên (vd "urgent"
+    // thay vì "userUrgent") vẫn trả 200 kèm bản ghi không đổi, client tưởng đã
+    // lưu thành công. Body rỗng thì lại rơi xuống truy vấn rồi trả 404, che mất
+    // nguyên nhân thật.
+    const TRUONG_HOP_LE = ["title", "category", "deadline", "notes", "userUrgent", "userImportant"];
+    const daGui = TRUONG_HOP_LE.filter((k) => k in body);
+    if (daGui.length === 0) {
+      const la = Object.keys(body).filter((k) => !TRUONG_HOP_LE.includes(k) && k !== "status");
+      return NextResponse.json(
+        {
+          error: la.length
+            ? `Không có trường nào hợp lệ để cập nhật. Trường không nhận ra: ${la.join(", ")}.`
+            : "Không có trường nào để cập nhật."
+        },
+        { status: 400 }
+      );
+    }
+
     if (body?.category !== undefined && !isValidCategory(body.category)) {
       return NextResponse.json({ error: "Nhãn phân loại không hợp lệ" }, { status: 400 });
     }

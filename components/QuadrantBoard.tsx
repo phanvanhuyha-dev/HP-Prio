@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Linkify from "./Linkify";
 
 export type Task = {
@@ -58,6 +58,11 @@ const QUADRANTS = [
   }
 ] as const;
 
+// Sau khi đánh dấu xong, thẻ biến mất và các thẻ dưới dồn lên ngay. Một cú chạm
+// thứ hai trong vòng vài trăm mili giây sẽ rơi trúng việc KHÁC vừa trượt vào
+// đúng vị trí đó. Bỏ qua các lần bấm quá sát nhau để chặn kiểu chạm nhầm này.
+const KHOANG_CHAN_MS = 700;
+
 export default function QuadrantBoard({
   tasks,
   onDone,
@@ -69,6 +74,15 @@ export default function QuadrantBoard({
   onDelete: (id: string) => void;
   onReclassify: (id: string, patch: ReclassifyPatch) => void;
 }) {
+  const lanBamCuoi = useRef(0);
+
+  function danhDauXong(id: string) {
+    const gio = Date.now();
+    if (gio - lanBamCuoi.current < KHOANG_CHAN_MS) return;
+    lanBamCuoi.current = gio;
+    onDone(id);
+  }
+
   if (tasks.length === 0) {
     return (
       <div style={{ padding: "60px 20px", textAlign: "center", color: "var(--slate)" }}>
@@ -123,12 +137,12 @@ export default function QuadrantBoard({
                 {q.goiY}
               </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="o-danh-sach">
               {items.map((t) => (
                 <TaskRow
                   key={t.id}
                   task={t}
-                  onDone={onDone}
+                  onDone={danhDauXong}
                   onDelete={onDelete}
                   onReclassify={onReclassify}
                 />
@@ -182,7 +196,9 @@ function TaskRow({
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-        <span style={{ fontSize: 13.5, color: "var(--cream)", lineHeight: 1.3 }}>{task.title}</span>
+        <span className="viec-tieu-de" style={{ fontSize: 13.5, color: "var(--cream)", lineHeight: 1.3 }}>
+          {task.title}
+        </span>
         {/* class "tap" mở vùng chạm ra 44x44px theo WCAG 2.5.5, icon vẫn nhỏ.
             Trước đây vùng bấm chỉ 12x21px, rất dễ bấm trượt trên điện thoại. */}
         <button
