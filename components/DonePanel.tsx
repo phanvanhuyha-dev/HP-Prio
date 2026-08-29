@@ -5,7 +5,15 @@ import type { Task } from "./QuadrantBoard";
 
 // Màn hình việc đã xong. Không có nơi xem lại thì bấm nhầm dấu ✓ là mất dấu
 // vĩnh viễn, dù dữ liệu vẫn nằm nguyên trong database.
-export default function DonePanel({ moiLamMoi, onDoiTrangThai }: { moiLamMoi: number; onDoiTrangThai: () => void }) {
+export default function DonePanel({
+  soLuong,
+  moiLamMoi,
+  onDoiTrangThai
+}: {
+  soLuong: number;
+  moiLamMoi: number;
+  onDoiTrangThai: () => void;
+}) {
   const [items, setItems] = useState<Task[]>([]);
   const [mo, setMo] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,9 +34,11 @@ export default function DonePanel({ moiLamMoi, onDoiTrangThai }: { moiLamMoi: nu
     }
   }, []);
 
+  // Chỉ tải danh sách khi người dùng thật sự bung panel. Số lượng đã có sẵn từ
+  // lần tải danh sách chính nên không cần gọi trước.
   useEffect(() => {
-    tai();
-  }, [tai, moiLamMoi]);
+    if (mo) tai();
+  }, [tai, mo, moiLamMoi]);
 
   async function moLai(t: Task) {
     const truoc = items;
@@ -48,7 +58,7 @@ export default function DonePanel({ moiLamMoi, onDoiTrangThai }: { moiLamMoi: nu
     }
   }
 
-  if (items.length === 0 && !error) return null;
+  if (soLuong === 0 && items.length === 0 && !error) return null;
 
   return (
     <section style={{ marginTop: 22 }} aria-labelledby="tieu-de-da-xong">
@@ -71,7 +81,7 @@ export default function DonePanel({ moiLamMoi, onDoiTrangThai }: { moiLamMoi: nu
           ✓ Đã xong
         </span>
         <span className="mono" style={{ fontSize: 11.5 }}>
-          {items.length} việc · {mo ? "thu gọn" : "xem"}
+          {mo ? items.length : soLuong} việc · {mo ? "thu gọn" : "xem"}
         </span>
       </button>
 

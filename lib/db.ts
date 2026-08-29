@@ -122,6 +122,22 @@ export async function listTasks(userEmail: string, status: TaskStatus = "open") 
   });
 }
 
+// Đếm việc theo từng trạng thái trong MỘT truy vấn, trả kèm lần tải danh sách.
+// Nhờ vậy màn "Đã xong" và "Thùng rác" hiện được số lượng mà không phải gọi
+// thêm hai request mỗi lần mở app.
+export async function countByStatus(userEmail: string) {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<{ status: string; n: number }>`
+      SELECT status, count(*)::int AS n
+      FROM tasks WHERE user_email = ${userEmail}
+      GROUP BY status
+    `;
+    const dem: Record<string, number> = { open: 0, done: 0, archived: 0, deleted: 0 };
+    for (const r of rows) dem[r.status] = r.n;
+    return dem;
+  });
+}
+
 export async function createTask(data: {
   userEmail: string;
   rawInput: string;

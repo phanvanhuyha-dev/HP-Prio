@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { listTasks, createTask, isValidCategory, isValidStatus, normalizeDeadline } from "@/lib/db";
+import {
+  listTasks,
+  createTask,
+  countByStatus,
+  isValidCategory,
+  isValidStatus,
+  normalizeDeadline
+} from "@/lib/db";
 import { describeDbError, loiJson } from "@/lib/diagnostics";
 
 export async function GET(req: Request) {
@@ -17,8 +24,12 @@ export async function GET(req: Request) {
   }
 
   try {
-    const tasks = await listTasks(session.user.email, requested);
-    return NextResponse.json({ tasks });
+    // Gộp đếm vào cùng lần gọi, để giao diện khỏi phải hỏi thêm hai request nữa.
+    const [tasks, counts] = await Promise.all([
+      listTasks(session.user.email, requested),
+      countByStatus(session.user.email)
+    ]);
+    return NextResponse.json({ tasks, counts });
   } catch (err) {
     console.error("List tasks error:", err);
     return loiJson(describeDbError(err), "tasks");

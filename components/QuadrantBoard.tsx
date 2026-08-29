@@ -285,8 +285,8 @@ function TaskRow({
         )
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div className="viec-hang-duoi" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <div className="viec-nut-nho" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
           <span
             className="mono"
             style={{ fontSize: 11, color: "var(--slate)" }}
@@ -302,7 +302,7 @@ function TaskRow({
                 title={moRong ? "Thu gọn ghi chú" : "Xem ghi chú"}
                 style={{ ...nutChuThich, color: "var(--amber)" }}
               >
-                📎 {moRong ? "Thu gọn" : "Ghi chú"}
+                📎 <span className="nut-chu">{moRong ? "Thu gọn" : "Ghi chú"}</span>
               </button>
             ) : (
               <button
@@ -310,8 +310,9 @@ function TaskRow({
                 className="mono"
                 title="Thêm ghi chú"
                 style={nutChuThich}
+                aria-label="Thêm ghi chú"
               >
-                + Ghi chú
+                + <span className="nut-chu">Ghi chú</span>
               </button>
             ))}
           {!dangSua && task.notes && moRong && (
@@ -377,6 +378,7 @@ function MiniToggle({
     <button
       onClick={onClick}
       aria-pressed={active}
+      aria-label={label}
       className="mono"
       style={{
         background: active ? color : "transparent",
@@ -392,7 +394,10 @@ function MiniToggle({
         fontWeight: active ? 700 : 500
       }}
     >
-      {label}
+      {/* Dưới 480px chữ được ẩn, chỉ còn một chấm màu, nhưng aria-label vẫn đầy
+          đủ nên trình đọc màn hình không mất thông tin. */}
+      <span className="pill-chu">{label}</span>
+      <span className="pill-cham" aria-hidden="true" />
     </button>
   );
 }

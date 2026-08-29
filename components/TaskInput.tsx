@@ -50,6 +50,10 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
   const [dungAI, setDungAI] = useState(true);
   const recognitionRef = useRef<any>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Chốt chống gửi trùng. Thuộc tính disabled chỉ có hiệu lực sau khi React
+  // render lại; máy chậm hoặc nhiều tab là đủ để hai cú bấm cùng lọt qua và
+  // bay mất hai lượt gọi Gemini. useRef có hiệu lực ngay lập tức.
+  const dangChayRef = useRef(false);
   const nhapId = useId();
 
   // Dọn micro và huỷ request đang bay khi rời màn hình.
@@ -115,6 +119,8 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
 
   async function handleAnalyze() {
     if (!text.trim()) return;
+    if (dangChayRef.current) return;
+    dangChayRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -149,6 +155,7 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
     } finally {
       clearTimeout(hetGio);
       abortRef.current = null;
+      dangChayRef.current = false;
       setLoading(false);
     }
   }
@@ -162,6 +169,9 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
       setError("Tiêu đề không được để trống");
       return;
     }
+    // Chặn lưu hai lần thành hai việc trùng nhau
+    if (dangChayRef.current) return;
+    dangChayRef.current = true;
     setLoading(true);
     setError(null);
     try {
@@ -197,6 +207,7 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
     } catch (e: any) {
       setError(loiThanThien(e));
     } finally {
+      dangChayRef.current = false;
       setLoading(false);
     }
   }

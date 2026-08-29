@@ -16,6 +16,9 @@ export default function AnalysisPanel() {
   const [giay, setGiay] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Xem chú thích ở TaskInput: disabled chỉ có hiệu lực sau khi render lại,
+  // useRef chặn được ngay cả khi hai cú bấm rơi vào cùng một chu kỳ.
+  const dangChayRef = useRef(false);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -26,6 +29,8 @@ export default function AnalysisPanel() {
   }, [loading]);
 
   async function run() {
+    if (dangChayRef.current) return;
+    dangChayRef.current = true;
     setLoading(true);
     setError(null);
 
@@ -51,6 +56,7 @@ export default function AnalysisPanel() {
     } finally {
       clearTimeout(hetGio);
       abortRef.current = null;
+      dangChayRef.current = false;
       setLoading(false);
     }
   }

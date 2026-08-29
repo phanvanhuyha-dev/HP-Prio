@@ -12,7 +12,15 @@ function conLaiNgay(deletedAt: string | null | undefined): number {
   return Math.max(0, Math.ceil(SO_NGAY_GIU - troi));
 }
 
-export default function TrashPanel({ moiLamMoi, onKhoiPhuc }: { moiLamMoi: number; onKhoiPhuc: () => void }) {
+export default function TrashPanel({
+  soLuong,
+  moiLamMoi,
+  onKhoiPhuc
+}: {
+  soLuong: number;
+  moiLamMoi: number;
+  onKhoiPhuc: () => void;
+}) {
   const [items, setItems] = useState<Task[]>([]);
   const [mo, setMo] = useState(false);
   const [dangTai, setDangTai] = useState(false);
@@ -37,10 +45,11 @@ export default function TrashPanel({ moiLamMoi, onKhoiPhuc }: { moiLamMoi: numbe
     }
   }, []);
 
-  // Tải lại mỗi khi danh sách chính thay đổi, để số đếm trên nhãn luôn đúng.
+  // Chỉ tải danh sách khi người dùng thật sự bung panel. Số lượng đã có sẵn từ
+  // lần tải danh sách chính nên không cần gọi trước.
   useEffect(() => {
-    tai();
-  }, [tai, moiLamMoi]);
+    if (mo) tai();
+  }, [tai, mo, moiLamMoi]);
 
   async function goi(url: string, init: RequestInit, apDung: (prev: Task[]) => Task[]) {
     const truoc = items;
@@ -78,7 +87,7 @@ export default function TrashPanel({ moiLamMoi, onKhoiPhuc }: { moiLamMoi: numbe
   }
 
   // Không có gì trong thùng rác thì không chiếm chỗ trên giao diện.
-  if (items.length === 0 && !error) return null;
+  if (soLuong === 0 && items.length === 0 && !error) return null;
 
   return (
     <section style={{ marginTop: 26 }} aria-labelledby="tieu-de-thung-rac">
@@ -101,7 +110,7 @@ export default function TrashPanel({ moiLamMoi, onKhoiPhuc }: { moiLamMoi: numbe
           🗑 Thùng rác
         </span>
         <span className="mono" style={{ fontSize: 11.5 }}>
-          {items.length} việc · {mo ? "thu gọn" : "xem"}
+          {mo ? items.length : soLuong} việc · {mo ? "thu gọn" : "xem"}
         </span>
       </button>
 

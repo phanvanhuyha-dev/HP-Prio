@@ -138,6 +138,37 @@ select option:hover {
   .o-danh-sach { max-height: 38vh; }
 }
 
+/* Dưới 480px, hai pill và nút ghi chú bị bóp còn ~29px, nằm sát nút Xóa.
+   Thu chữ lại chỉ còn dấu hiệu, nhưng GIỮ NGUYÊN vùng chạm 44px và nhãn cho
+   trình đọc màn hình. Bố cục 2x2 không đổi. */
+@media (max-width: 479px) {
+  .pill-chu { display: none; }
+  .pill-cham {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .viec-nut-nho .nut-chu { display: none; }
+  /* Tách nút Xóa ra xa các nút khác để bớt bấm nhầm */
+  .viec-hang-duoi { gap: 14px !important; }
+}
+
+.pill-cham { display: none; }
+
+/* Toast hoàn tác luôn nằm trong tầm mắt, kể cả khi đang cuộn giữa ma trận.
+   Chừa chỗ cho thanh điều hướng của trình duyệt trên điện thoại. */
+.toast-hoan-tac {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  width: min(560px, calc(100vw - 32px));
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
 @keyframes quay { to { transform: rotate(360deg); } }
 
 .spinner {

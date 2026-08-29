@@ -17,6 +17,19 @@ export default function Dashboard({ userName }: { userName: string }) {
   const [hoanTac, setHoanTac] = useState<{ task: Task; loai: "xong" | "xoa" } | null>(null);
   // Tăng lên mỗi khi danh sách chính đổi, để Thùng rác tải lại theo.
   const [nhipLamMoi, setNhipLamMoi] = useState(0);
+  const [dem, setDem] = useState<Record<string, number>>({ open: 0, done: 0, deleted: 0 });
+
+  // Bộ lọc nhanh. Lọc ngay trên danh sách đã tải nên không tốn thêm request.
+  const [tuKhoa, setTuKhoa] = useState("");
+  const [nhan, setNhan] = useState<"tat-ca" | "work" | "personal">("tat-ca");
+
+  const dsHienThi = tasks.filter((t) => {
+    if (nhan !== "tat-ca" && t.category !== nhan) return false;
+    const k = tuKhoa.trim().toLowerCase();
+    if (!k) return true;
+    return (t.title + " " + (t.notes ?? "")).toLowerCase().includes(k);
+  });
+  const dangLoc = tuKhoa.trim() !== "" || nhan !== "tat-ca";
 
   function handleSaved(tieuDe: string) {
     setDaLuu(tieuDe);
@@ -35,6 +48,7 @@ export default function Dashboard({ userName }: { userName: string }) {
       if (!res.ok) throw new Error(await docLoi(res));
       const data = await res.json();
       setTasks(data.tasks || []);
+      setDem(data.counts || { open: 0, done: 0, deleted: 0 });
       // Tải lại thành công thì lỗi cũ không còn đúng nữa, phải xóa đi.
       setError(null);
     } catch (e: any) {
@@ -89,7 +103,7 @@ export default function Dashboard({ userName }: { userName: string }) {
   // đồng hồ đếm ngược trong trình duyệt: đóng tab rồi vẫn khôi phục được.
   function xoaCoHoanTac(task: Task) {
     setHoanTac({ task, loai: "xoa" });
-    setTimeout(() => setHoanTac((h) => (h?.task.id === task.id ? null : h)), 8000);
+    setTimeout(() => setHoanTac((h) => (h?.task.id === task.id ? null : h)), 10000);
     return mutate(
       (prev) => prev.filter((t) => t.id !== task.id),
       () => fetch(`/api/tasks/${task.id}`, { method: "DELETE" })
@@ -113,7 +127,7 @@ export default function Dashboard({ userName }: { userName: string }) {
     const task = tasks.find((t) => t.id === id);
     if (task) {
       setHoanTac({ task, loai: "xong" });
-      setTimeout(() => setHoanTac((h) => (h?.task.id === id ? null : h)), 8000);
+      setTimeout(() => setHoanTac((h) => (h?.task.id === id ? null : h)), 10000);
     }
     return mutate(
       (prev) => prev.filter((t) => t.id !== id),
@@ -211,20 +225,22 @@ export default function Dashboard({ userName }: { userName: string }) {
         </p>
       )}
 
-      {/* Băng hoàn tác cho "xong" và "xóa" */}
+      {/* Băng hoàn tác neo cố định ở đáy màn hình. Đặt trong luồng trang thì nó
+          trôi khỏi tầm nhìn khi người dùng đang ở giữa ma trận, và undo chỉ có
+          giá trị nếu kịp nhìn thấy mà bấm. */}
       {hoanTac && (
         <div
           role="status"
+          className="toast-hoan-tac"
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             gap: 12,
-            marginTop: 12,
             background: "var(--navy-2)",
-            border: "1px solid var(--line)",
-            borderRadius: 8,
-            padding: "8px 12px"
+            border: "1px solid var(--teal)",
+            borderRadius: 10,
+            padding: "10px 14px"
           }}
         >
           <span style={{ fontSize: 13, color: "var(--cream)" }}>
@@ -281,21 +297,89 @@ export default function Dashboard({ userName }: { userName: string }) {
         <h2 style={{ fontFamily: "var(--font-display)", fontSize: 18, color: "var(--cream)", margin: 0 }}>
           Ma trận ưu tiên
         </h2>
-        <span className="mono" style={{ fontSize: 11, color: "var(--slate)" }}>{tasks.length} việc mở</span>
+        <span className="mono" style={{ fontSize: 11.5, color: "var(--slate)" }}>
+          {dangLoc ? `${dsHienThi.length}/${tasks.length}` : tasks.length} việc mở
+          {dem.done > 0 && <span style={{ color: "var(--teal)" }}> · {dem.done} đã xong</span>}
+        </span>
       </div>
+
+      {/* Bộ lọc nhanh. Chỉ hiện khi đã có kha khá việc, dưới ngưỡng đó thì
+          cuộn mắt nhanh hơn là gõ tìm. */}
+      {tasks.length >= 8 && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+          <input
+            value={tuKhoa}
+            onChange={(e) => setTuKhoa(e.target.value)}
+            placeholder="Tìm trong tiêu đề và ghi chú..."
+            aria-label="Tìm việc"
+            style={{
+              flex: "1 1 180px",
+              background: "var(--field)",
+              border: "1px solid var(--line)",
+              borderRadius: 8,
+              padding: "10px 12px",
+              color: "var(--cream)",
+              fontSize: 13.5,
+              minHeight: 44,
+              fontFamily: "var(--font-body)"
+            }}
+          />
+          <div style={{ display: "flex", gap: 6 }}>
+            {([
+              ["tat-ca", "Tất cả"],
+              ["work", "🏢 Cơ quan"],
+              ["personal", "🏠 Cá nhân"]
+            ] as const).map(([ma, ten]) => (
+              <button
+                key={ma}
+                onClick={() => setNhan(ma)}
+                aria-pressed={nhan === ma}
+                style={{
+                  background: nhan === ma ? "var(--teal)" : "transparent",
+                  border: `1px solid ${nhan === ma ? "var(--teal)" : "var(--line)"}`,
+                  color: nhan === ma ? "var(--navy)" : "var(--slate)",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 12.5,
+                  fontWeight: nhan === ma ? 700 : 400,
+                  minHeight: 44
+                }}
+              >
+                {ten}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p style={{ color: "var(--slate)" }}>Đang tải…</p>
       ) : (
         <QuadrantBoard
-          tasks={tasks}
+          tasks={dsHienThi}
           onDone={handleDone}
           onDelete={handleDelete}
           onReclassify={handleReclassify}
         />
       )}
 
+      {dangLoc && dsHienThi.length === 0 && tasks.length > 0 && (
+        <p style={{ color: "var(--slate)", fontSize: 13, textAlign: "center", marginTop: 14 }}>
+          Không có việc nào khớp bộ lọc.{" "}
+          <button
+            onClick={() => {
+              setTuKhoa("");
+              setNhan("tat-ca");
+            }}
+            style={{ background: "none", border: "none", color: "var(--amber)", fontSize: 13, textDecoration: "underline", minHeight: 44 }}
+          >
+            Xóa bộ lọc
+          </button>
+        </p>
+      )}
+
       <DonePanel
+        soLuong={dem.done ?? 0}
         moiLamMoi={nhipLamMoi}
         onDoiTrangThai={() => {
           loadTasks();
@@ -304,6 +388,7 @@ export default function Dashboard({ userName }: { userName: string }) {
       />
 
       <TrashPanel
+        soLuong={dem.deleted ?? 0}
         moiLamMoi={nhipLamMoi}
         onKhoiPhuc={() => {
           loadTasks();
