@@ -6,6 +6,7 @@ import TaskInput from "./TaskInput";
 import QuadrantBoard, { type Task } from "./QuadrantBoard";
 import AnalysisPanel from "./AnalysisPanel";
 import PushSetup from "./PushSetup";
+import TrashPanel from "./TrashPanel";
 
 export default function Dashboard({ userName }: { userName: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -13,6 +14,8 @@ export default function Dashboard({ userName }: { userName: string }) {
   const [error, setError] = useState<string | null>(null);
   const [daLuu, setDaLuu] = useState<string | null>(null);
   const [hoanTac, setHoanTac] = useState<{ task: Task; loai: "xong" | "xoa" } | null>(null);
+  // Tăng lên mỗi khi danh sách chính đổi, để Thùng rác tải lại theo.
+  const [nhipLamMoi, setNhipLamMoi] = useState(0);
 
   function handleSaved(tieuDe: string) {
     setDaLuu(tieuDe);
@@ -57,6 +60,8 @@ export default function Dashboard({ userName }: { userName: string }) {
         return;
       }
       if (!res.ok) throw new Error(await docLoi(res));
+      // Xóa hoặc khôi phục đều làm thùng rác đổi, báo cho nó tải lại.
+      setNhipLamMoi((n) => n + 1);
     } catch (e: any) {
       await loadTasks();
       setError(loiThanThien(e));
@@ -288,6 +293,14 @@ export default function Dashboard({ userName }: { userName: string }) {
           onReclassify={handleReclassify}
         />
       )}
+
+      <TrashPanel
+        moiLamMoi={nhipLamMoi}
+        onKhoiPhuc={() => {
+          loadTasks();
+          setNhipLamMoi((n) => n + 1);
+        }}
+      />
 
       <AnalysisPanel />
     </main>

@@ -5,6 +5,7 @@ import {
   updateTask,
   updateTaskStatus,
   deleteTask,
+  hardDeleteTask,
   isValidCategory,
   isValidStatus,
   isValidUuid
@@ -77,7 +78,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -86,9 +87,20 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     return NextResponse.json({ error: "Mã công việc không hợp lệ" }, { status: 400 });
   }
 
+  // ?vinhVien=1 xóa hẳn khỏi database, chỉ dùng được từ màn Thùng rác.
+  // Mặc định là xóa mềm để còn khôi phục được.
+  const vinhVien = new URL(req.url).searchParams.get("vinhVien") === "1";
+
   try {
-    const removed = await deleteTask(params.id, session.user.email);
-    if (!removed) return NextResponse.json({ error: "Không tìm thấy công việc" }, { status: 404 });
+    const removed = vinhVien
+      ? await hardDeleteTask(params.id, session.user.email)
+      : await deleteTask(params.id, session.user.email);
+    if (!removed) {
+      return NextResponse.json(
+        { error: vinhVien ? "Việc này không nằm trong thùng rác" : "Không tìm thấy công việc" },
+        { status: 404 }
+      );
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Delete task error:", err);

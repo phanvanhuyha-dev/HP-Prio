@@ -8,6 +8,8 @@ export type Task = {
   category: "work" | "personal";
   deadline: string | null;
   notes: string | null;
+  // Chỉ có giá trị với việc nằm trong thùng rác
+  deleted_at?: string | null;
   user_urgent: boolean;
   user_important: boolean;
 };

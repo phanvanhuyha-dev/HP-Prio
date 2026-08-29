@@ -236,6 +236,28 @@ export async function restoreTask(id: string, userEmail: string) {
   });
 }
 
+// Xóa hẳn MỘT việc khỏi database. Chỉ cho phép với việc đã nằm trong thùng rác,
+// để không bao giờ có đường xóa thẳng một việc đang mở chỉ bằng một lần bấm.
+export async function hardDeleteTask(id: string, userEmail: string) {
+  return chayVaTuSua(async () => {
+    const { rowCount } = await sql`
+      DELETE FROM tasks
+      WHERE id = ${id} AND user_email = ${userEmail} AND status = 'deleted'
+    `;
+    return (rowCount ?? 0) > 0;
+  });
+}
+
+// Dọn sạch thùng rác của một người dùng.
+export async function emptyTrash(userEmail: string) {
+  return chayVaTuSua(async () => {
+    const { rowCount } = await sql`
+      DELETE FROM tasks WHERE user_email = ${userEmail} AND status = 'deleted'
+    `;
+    return rowCount ?? 0;
+  });
+}
+
 export async function listDeletedTasks(userEmail: string) {
   return chayVaTuSua(async () => {
     const { rows } = await sql<Task>`
