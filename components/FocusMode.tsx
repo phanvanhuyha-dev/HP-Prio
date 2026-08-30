@@ -87,15 +87,23 @@ export default function FocusMode({
   // Chia bước ngay trong màn tập trung, cho việc chưa có bước nào
   const [dangChia, setDangChia] = useState(false);
   const [buocDeXuat, setBuocDeXuat] = useState<string[] | null>(null);
-  // Nhớ thời lượng dùng lần trước, và ô nhập số phút tùy chọn
-  const [phutQuen, setPhutQuen] = useState(25);
+  // Chip thời lượng chỉ để CHỌN, nút "Bắt đầu" riêng mới khởi động phiên.
+  // Trước đây bấm chip là chạy luôn, người dùng tưởng phải chọn rồi mới chạy
+  // nên hay khởi động nhầm phiên.
+  const [phutChon, setPhutChon] = useState<number | "khac">(25);
   const [phutKhac, setPhutKhac] = useState("");
   useEffect(() => {
     const n = docPhutQuen();
-    setPhutQuen(n);
-    // Lần trước dùng một mốc ngoài preset thì điền sẵn vào ô "khác"
-    if (!PRESET_PHUT.includes(n)) setPhutKhac(String(n));
+    if (PRESET_PHUT.includes(n)) {
+      setPhutChon(n);
+    } else {
+      // Lần trước dùng một mốc ngoài preset thì chọn sẵn ô "khác" với đúng số đó
+      setPhutChon("khac");
+      setPhutKhac(String(n));
+    }
   }, []);
+  const phutHieuLuc = phutChon === "khac" ? Number(phutKhac || 0) : phutChon;
+  const phutHopLe = Number.isInteger(phutHieuLuc) && phutHieuLuc >= 5 && phutHieuLuc <= 180;
   const audioRef = useRef<AudioContext | null>(null);
   const wakeLockRef = useRef<any>(null);
   const daBaoRef = useRef(false);
@@ -191,7 +199,6 @@ export default function FocusMode({
     }
     dangGoiRef.current = true;
     setError(null);
-    setPhutQuen(phut);
     try {
       localStorage.setItem(KHOA_PHUT, String(phut));
     } catch {}
@@ -440,19 +447,20 @@ export default function FocusMode({
               Thời lượng
             </p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch" }}>
-              {/* Mốc dùng lần trước được tô nổi, bấm phát là chạy lại đúng nhịp quen */}
+              {/* Chip chỉ để CHỌN thời lượng; mốc dùng lần trước được chọn sẵn */}
               {PRESET_PHUT.map((p) => (
                 <button
                   key={p}
-                  onClick={() => batDau(p)}
+                  onClick={() => setPhutChon(p)}
+                  aria-pressed={phutChon === p}
                   style={{
-                    background: p === phutQuen ? "var(--amber)" : "transparent",
-                    color: p === phutQuen ? "var(--navy)" : "var(--cream)",
-                    border: `1px solid ${p === phutQuen ? "var(--amber)" : "var(--line)"}`,
+                    background: phutChon === p ? "var(--field)" : "transparent",
+                    color: "var(--cream)",
+                    border: `1px solid ${phutChon === p ? "var(--amber)" : "var(--line)"}`,
                     borderRadius: 12,
                     padding: "14px 20px",
                     fontSize: 16,
-                    fontWeight: 700,
+                    fontWeight: phutChon === p ? 700 : 500,
                     minHeight: 52
                   }}
                 >
@@ -462,21 +470,25 @@ export default function FocusMode({
 
               {/* Số phút tùy chọn, 5-180 theo đúng giới hạn API */}
               <div
+                onClick={() => setPhutChon("khac")}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 6,
-                  border: `1px solid ${!PRESET_PHUT.includes(phutQuen) && phutKhac ? "var(--amber)" : "var(--line)"}`,
+                  background: phutChon === "khac" ? "var(--field)" : "transparent",
+                  border: `1px solid ${phutChon === "khac" ? "var(--amber)" : "var(--line)"}`,
                   borderRadius: 12,
-                  padding: "0 6px 0 12px",
-                  minHeight: 52
+                  padding: "0 14px",
+                  minHeight: 52,
+                  cursor: "text"
                 }}
               >
                 <input
                   value={phutKhac}
+                  onFocus={() => setPhutChon("khac")}
                   onChange={(e) => setPhutKhac(e.target.value.replace(/\D/g, "").slice(0, 3))}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && phutKhac) batDau(Number(phutKhac));
+                    if (e.key === "Enter" && phutHopLe) batDau(phutHieuLuc);
                   }}
                   inputMode="numeric"
                   placeholder="Khác"
@@ -494,26 +506,33 @@ export default function FocusMode({
                   }}
                 />
                 <span style={{ fontSize: 13, color: "var(--slate)" }}>phút</span>
-                <button
-                  onClick={() => phutKhac && batDau(Number(phutKhac))}
-                  disabled={!phutKhac}
-                  aria-label="Bắt đầu với số phút tùy chọn"
-                  style={{
-                    background: phutKhac ? "var(--amber)" : "var(--field)",
-                    color: phutKhac ? "var(--navy)" : "var(--slate)",
-                    border: "none",
-                    borderRadius: 9,
-                    padding: "0 14px",
-                    fontSize: 14,
-                    fontWeight: 700,
-                    minHeight: 40,
-                    marginLeft: 2
-                  }}
-                >
-                  ▶
-                </button>
               </div>
             </div>
+
+            {/* Nút bắt đầu riêng, nói rõ sẽ chạy bao nhiêu phút */}
+            <button
+              onClick={() => batDau(phutHieuLuc)}
+              disabled={!phutHopLe}
+              style={{
+                width: "100%",
+                marginTop: 14,
+                background: phutHopLe ? "var(--amber)" : "var(--field)",
+                color: phutHopLe ? "var(--navy)" : "var(--slate)",
+                border: "none",
+                borderRadius: 12,
+                padding: "15px 0",
+                fontSize: 16,
+                fontWeight: 700,
+                minHeight: 54
+              }}
+            >
+              ▶ Bắt đầu{phutHopLe ? ` · ${phutHieuLuc} phút` : ""}
+            </button>
+            {phutChon === "khac" && !phutHopLe && phutKhac !== "" && (
+              <p role="alert" style={{ fontSize: 12, color: "var(--coral)", margin: "8px 0 0" }}>
+                Thời lượng phải từ 5 đến 180 phút.
+              </p>
+            )}
             <p style={{ fontSize: 12, color: "var(--slate)", marginTop: 14, lineHeight: 1.5 }}>
               Màn hình được giữ sáng trong phiên. Nếu anh khóa máy, đồng hồ vẫn tính
               đúng nhưng sẽ không có chuông khi hết giờ.
