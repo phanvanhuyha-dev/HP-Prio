@@ -159,6 +159,14 @@ Chưa thêm redirect URI của domain thật vào Google Cloud Console. Xem lạ
 
 `.env.local` ở máy chưa có `POSTGRES_URL`. Biến điền trên Vercel không tự về máy, phải chạy `vercel env pull .env.local`. Hoặc đơn giản hơn là dùng Cách A ở mục 4 bước 6, tạo bảng thẳng trên web thì không cần biến ở máy.
 
+### Nút micro không hoạt động trên iPhone
+
+Không phải lỗi. **Safari trên iOS không hỗ trợ Web Speech API**, và mọi trình duyệt trên iPhone (kể cả Chrome) đều chạy lõi WebKit của Safari nên cũng không có.
+
+App tự phát hiện điều này và thay nút micro bằng hướng dẫn: bấm vào ô nhập rồi chọn nút 🎤 trên **bàn phím iOS** để đọc chính tả. Cách này chất lượng tiếng Việt tốt hơn, và chạy được trong mọi ô nhập của app.
+
+Nút micro trong app vẫn hiện bình thường trên Chrome/Edge máy tính, Safari macOS và Chrome Android.
+
 ### Đăng nhập xong bị đá về trang login
 
 Kiểm tra `OWNER_EMAIL` đã đúng địa chỉ Gmail đang dùng để đăng nhập chưa. Biến này để trống thì app khóa toàn bộ đăng nhập.

@@ -57,6 +57,17 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
   const dangChayRef = useRef(false);
   const nhapId = useId();
 
+  // Safari trên iPhone/iPad KHÔNG hỗ trợ Web Speech API, kể cả khi dùng Chrome
+  // trên iOS (vì mọi trình duyệt ở iOS đều chạy lõi WebKit của Safari).
+  // Phải kiểm tra rồi thay nút micro bằng hướng dẫn, thay vì để người dùng bấm
+  // vào một nút không bao giờ chạy.
+  const [hoTroMicro, setHoTroMicro] = useState<"chua-biet" | "co" | "khong">("chua-biet");
+
+  useEffect(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setHoTroMicro(SR ? "co" : "khong");
+  }, []);
+
   // Dọn micro và huỷ request đang bay khi rời màn hình.
   useEffect(() => {
     return () => {
@@ -75,26 +86,55 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
 
   function toggleVoice() {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setError("Trình duyệt này không hỗ trợ nhập bằng giọng nói. Anh có thể gõ chữ.");
-      return;
-    }
+    if (!SpeechRecognition) return; // nút đã bị thay bằng hướng dẫn, không tới đây
+
     if (listening) {
       recognitionRef.current?.stop();
       return;
     }
+
     const recognition = new SpeechRecognition();
     recognition.lang = "vi-VN";
     recognition.interimResults = false;
+    // Không tự dừng sau câu đầu tiên, để nói được nhiều câu liền mạch.
+    recognition.continuous = true;
+
     recognition.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript;
-      setText((prev) => (prev ? prev + " " + transcript : transcript));
+      // Với continuous = true, e.results tích lũy dần nên chỉ lấy phần mới.
+      let moi = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) moi += e.results[i][0].transcript;
+      }
+      if (!moi.trim()) return;
+      setText((prev) => (prev ? prev.trimEnd() + " " + moi.trim() : moi.trim()));
     };
+
     recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
+
+    // Trước đây hàm này chỉ tắt đèn mà không nói gì, nên bấm micro không ăn là
+    // người dùng không hề biết vì sao.
+    recognition.onerror = (e: any) => {
+      setListening(false);
+      const loi: Record<string, string> = {
+        "not-allowed": "Trình duyệt đang chặn micro. Anh vào phần cài đặt quyền của trang để cho phép.",
+        "service-not-allowed": "Trình duyệt đang chặn micro. Anh vào phần cài đặt quyền của trang để cho phép.",
+        "no-speech": "Không nghe thấy gì. Anh thử nói to hơn hoặc lại gần micro.",
+        "audio-capture": "Không tìm thấy micro nào trên máy.",
+        network: "Nhận giọng nói cần mạng, mà kết nối đang trục trặc."
+      };
+      // "aborted" là do chính người dùng bấm dừng, không phải lỗi.
+      if (e?.error === "aborted") return;
+      setError(loi[e?.error] ?? `Không nhận được giọng nói (${e?.error ?? "lỗi không rõ"}).`);
+    };
+
     recognitionRef.current = recognition;
-    recognition.start();
-    setListening(true);
+    setError(null);
+    try {
+      recognition.start();
+      setListening(true);
+    } catch {
+      setError("Không khởi động được micro, anh thử lại.");
+    }
   }
 
   // Bỏ qua AI: dựng sẵn bản nháp từ chính câu gõ. Việc đơn giản như "họp"
@@ -261,26 +301,36 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
       />
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-        <button
-          onClick={toggleVoice}
-          aria-pressed={listening}
-          aria-label={listening ? "Dừng nhập bằng giọng nói" : "Nhập bằng giọng nói"}
-          title={listening ? "Dừng ghi âm" : "Nhập bằng giọng nói"}
-          style={{
-            background: listening ? "var(--coral)" : "transparent",
-            border: "1px solid " + (listening ? "var(--coral)" : "var(--line)"),
-            borderRadius: 999,
-            width: 44,
-            height: 44,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 18,
-            color: listening ? "var(--navy)" : "var(--cream)"
-          }}
-        >
-          {listening ? "⏹" : "🎙"}
-        </button>
+        {hoTroMicro === "khong" ? (
+          // Trên iPhone thì bàn phím iOS đã có sẵn nút đọc chính tả, chất lượng
+          // tiếng Việt còn tốt hơn. Chỉ đường tới đó thay vì bày một nút chết.
+          <span style={{ fontSize: 12, color: "var(--slate)", maxWidth: 260, lineHeight: 1.4 }}>
+            Máy này không cho web dùng micro. Anh bấm vào ô nhập rồi chọn nút 🎤
+            trên bàn phím để đọc chính tả.
+          </span>
+        ) : (
+          <button
+            onClick={toggleVoice}
+            aria-pressed={listening}
+            aria-label={listening ? "Dừng nhập bằng giọng nói" : "Nhập bằng giọng nói"}
+            title={listening ? "Dừng ghi âm" : "Nhập bằng giọng nói"}
+            style={{
+              background: listening ? "var(--coral)" : "transparent",
+              border: "1px solid " + (listening ? "var(--coral)" : "var(--line)"),
+              borderRadius: 999,
+              width: 44,
+              height: 44,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 18,
+              flexShrink: 0,
+              color: listening ? "var(--navy)" : "var(--cream)"
+            }}
+          >
+            {listening ? "⏹" : "🎙"}
+          </button>
+        )}
 
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {/* Đường thoát khỏi nút thắt chờ AI: việc đơn giản thì lưu thẳng. */}
@@ -346,8 +396,14 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
 
       {/* Trình đọc màn hình cần được báo trạng thái, không chỉ đổi chữ trên nút. */}
       <p aria-live="polite" className="sr-only">
-        {loading ? `Đang phân tích, đã chờ ${giay} giây` : ""}
+        {loading ? `Đang phân tích, đã chờ ${giay} giây` : listening ? "Đang nghe" : ""}
       </p>
+
+      {listening && (
+        <p style={{ fontSize: 12.5, color: "var(--coral)", marginTop: 10, marginBottom: 0 }}>
+          🔴 Đang nghe, anh nói bình thường. Nói xong bấm lại nút micro để dừng.
+        </p>
+      )}
 
       {loading && (
         <p style={{ fontSize: 12, color: "var(--slate)", marginTop: 10, marginBottom: 0 }}>
