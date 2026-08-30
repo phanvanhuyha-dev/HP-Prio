@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { docLoi, loiThanThien, ngayVN } from "@/lib/client-api";
-import type { Task } from "./QuadrantBoard";
+import type { Task } from "./TaskList";
 
 // Màn hình việc đã xong. Không có nơi xem lại thì bấm nhầm dấu ✓ là mất dấu
 // vĩnh viễn, dù dữ liệu vẫn nằm nguyên trong database.

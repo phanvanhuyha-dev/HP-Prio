@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 
 // Next 14 yêu cầu themeColor nằm ở viewport, để trong metadata sẽ bị cảnh báo khi build.
 export const viewport: Viewport = {
-  themeColor: "#0F1B2A",
+  themeColor: "#0A0B0D",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover"

@@ -285,10 +285,19 @@ export async function breakdownTask(t: {
   deadline: string | null;
   notes: string | null;
 }): Promise<string[]> {
+  // QUAN TRỌNG: driver Postgres trả cột TIMESTAMPTZ về dạng ĐỐI TƯỢNG Date chứ
+  // không phải chuỗi (kiểu Task chỉ đúng sau khi qua JSON). Gọi .slice() thẳng
+  // trên t.deadline từng làm route này chết với TypeError cho mọi việc có hạn.
+  const han = (() => {
+    if (!t.deadline) return "chưa có";
+    const d = new Date(t.deadline as any);
+    return Number.isNaN(d.getTime()) ? "chưa có" : d.toISOString().slice(0, 16);
+  })();
+
   // Tiêu đề và ghi chú là dữ liệu người dùng nhập, dùng function replacer để
   // các mẫu $&, $' trong đó không bị String.replace diễn giải (xem analyzeTasks).
   const prompt = BREAKDOWN_PROMPT.replace("{{TITLE}}", () => t.title)
-    .replace("{{DEADLINE}}", t.deadline ? t.deadline.slice(0, 16) : "chưa có")
+    .replace("{{DEADLINE}}", han)
     .replace("{{NOTES}}", () => (t.notes?.trim() ? t.notes.slice(0, 2000) : "(trống)"));
 
   const parsed = await sinhJson(prompt);

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { docLoi, loiThanThien, ngayVN } from "@/lib/client-api";
-import type { Task } from "./QuadrantBoard";
+import type { Task } from "./TaskList";
 
 const SO_NGAY_GIU = 30;
 

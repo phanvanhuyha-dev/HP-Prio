@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { docLoi, loiThanThien } from "@/lib/client-api";
+import { demBuoc, themBuocVaoGhiChu } from "@/lib/checklist";
+import { TEN_TRO_LY } from "@/lib/branding";
 import NotesView from "./NotesView";
-import type { Task } from "./QuadrantBoard";
+import type { Task } from "./TaskList";
 
 // Phiên đang chạy, lưu vào localStorage để iOS có "giết" app giữa chừng
 // (chuyện thường với PWA) thì mở lại vẫn tiếp tục đúng chỗ. Đồng hồ tính theo
@@ -10,8 +12,8 @@ import type { Task } from "./QuadrantBoard";
 export type PhienTapTrung = {
   sessionId: string;
   taskId: string;
-  batDau: number; // Date.now()
-  ketThucLuc: number; // Date.now() + phút * 60000
+  batDau: number;
+  ketThucLuc: number;
   phut: number;
 };
 
@@ -58,7 +60,6 @@ export default function FocusMode({
   onDoiGhiChu
 }: {
   task: Task;
-  // Phiên khôi phục sau khi app bị đóng giữa chừng, null nếu bắt đầu mới
   phienCu: PhienTapTrung | null;
   onClose: () => void;
   onXongViec: (id: string) => void;
@@ -72,12 +73,16 @@ export default function FocusMode({
   const [phutVuaXong, setPhutVuaXong] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [homNay, setHomNay] = useState<{ giay: number; phien: number } | null>(null);
+  // Chia bước ngay trong màn tập trung, cho việc chưa có bước nào
+  const [dangChia, setDangChia] = useState(false);
+  const [buocDeXuat, setBuocDeXuat] = useState<string[] | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const wakeLockRef = useRef<any>(null);
   const daBaoRef = useRef(false);
-  const dangChayRef = useRef(false);
+  const dangGoiRef = useRef(false);
 
-  // Tổng đã tập trung hôm nay, tải lại sau mỗi phiên hoàn thành
+  const buoc = demBuoc(task.notes);
+
   useEffect(() => {
     fetch("/api/focus")
       .then(async (r) => (r.ok ? setHomNay((await r.json()).homNay) : null))
@@ -149,9 +154,6 @@ export default function FocusMode({
         }
       }
     } catch {}
-    // Thông báo hệ thống nếu đã cấp quyền (tận dụng quyền push sẵn có).
-    // Chỉ chạy khi app còn thức; máy đang khóa thì JS không chạy, đã ghi rõ
-    // giới hạn này trên giao diện.
     try {
       if (typeof Notification !== "undefined" && Notification.permission === "granted") {
         navigator.serviceWorker?.ready
@@ -162,10 +164,9 @@ export default function FocusMode({
   }
 
   async function batDau(phut: number) {
-    if (dangChayRef.current) return;
-    dangChayRef.current = true;
+    if (dangGoiRef.current) return;
+    dangGoiRef.current = true;
     setError(null);
-    // Tạo AudioContext ngay trong thao tác bấm để iOS cho phép phát chuông sau này
     try {
       const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
       if (AC && !audioRef.current) audioRef.current = new AC();
@@ -199,7 +200,7 @@ export default function FocusMode({
     } catch (e: any) {
       setError(loiThanThien(e));
     } finally {
-      dangChayRef.current = false;
+      dangGoiRef.current = false;
     }
   }
 
@@ -217,9 +218,30 @@ export default function FocusMode({
       await fetch(`/api/focus/${p.sessionId}`, { method: "PATCH" });
     } catch {
       // Mất mạng thì thôi: phiên sẽ được tự đóng (có chặn trên thời lượng)
-      // ở lần bắt đầu phiên sau, không mất dữ liệu đáng kể.
+      // ở lần bắt đầu phiên sau.
     }
     if (!dungGio) onClose();
+  }
+
+  async function chiaBuoc() {
+    if (dangChia) return;
+    setDangChia(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/breakdown`, { method: "POST" });
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (!res.ok) throw new Error(await docLoi(res));
+      const data = await res.json();
+      // Đề xuất hiện ra để duyệt trước, không lưu thẳng
+      setBuocDeXuat(data.steps ?? []);
+    } catch (e: any) {
+      setError(loiThanThien(e));
+    } finally {
+      setDangChia(false);
+    }
   }
 
   const dangChay = phien !== null;
@@ -227,10 +249,10 @@ export default function FocusMode({
 
   return (
     <div className="focus-lop" role="dialog" aria-modal="true" aria-label="Chế độ tập trung">
-      <div style={{ maxWidth: 640, margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-          <span className="mono" style={{ fontSize: 11.5, color: "var(--teal)", letterSpacing: "0.12em" }}>
-            CHẾ ĐỘ TẬP TRUNG
+      <div style={{ maxWidth: 560, margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <span className="mono" style={{ fontSize: 11, color: "var(--slate)", letterSpacing: "0.16em", textTransform: "uppercase" }}>
+            Tập trung sâu
           </span>
           <button
             onClick={() => (dangChay ? ketThuc(false) : onClose())}
@@ -242,23 +264,152 @@ export default function FocusMode({
           </button>
         </div>
 
-        <h2
-          className="viec-tieu-de"
-          style={{ fontFamily: "var(--font-display)", fontSize: 24, lineHeight: 1.3, color: "var(--cream)", margin: "0 0 6px" }}
+        {/* ----- Đồng hồ ----- */}
+        {dangChay && (
+          <div style={{ textAlign: "center", margin: "10px 0 26px" }}>
+            <div className="mono" style={{ fontSize: 76, fontWeight: 500, color: "var(--cream)", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+              {mmss(conLai)}
+            </div>
+            <div style={{ height: 3, background: "var(--field)", borderRadius: 2, margin: "20px auto 8px", maxWidth: 320 }}>
+              <div style={{ height: "100%", width: `${phanTram}%`, background: "var(--amber)", borderRadius: 2 }} />
+            </div>
+            <p className="mono" style={{ fontSize: 11, color: "var(--slate)", margin: 0 }}>
+              phiên {phien!.phut} phút
+            </p>
+          </div>
+        )}
+
+        {hetGio && !dangChay && (
+          <div style={{ textAlign: "center", margin: "10px 0 26px" }}>
+            <p style={{ fontSize: 38, margin: 0 }}>🎉</p>
+            <p style={{ fontSize: 17, color: "var(--cream)", fontWeight: 600, margin: "6px 0 0" }}>
+              Xong phiên {phutVuaXong} phút
+            </p>
+          </div>
+        )}
+
+        {/* ----- Thẻ việc đang làm: tiêu đề + CÁC BƯỚC là nội dung chính ----- */}
+        <div
+          style={{
+            background: "var(--navy-2)",
+            border: "1px solid var(--line)",
+            borderRadius: 16,
+            padding: "16px 16px 14px"
+          }}
         >
-          {task.title}
-        </h2>
-        {task.deadline && (
-          <p className="mono" style={{ fontSize: 12, color: "var(--slate)", margin: "0 0 16px" }}>
-            Hạn: {new Date(task.deadline).toLocaleDateString("vi-VN")}
+          <div className="mono" style={{ fontSize: 10.5, color: "var(--slate)", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 8 }}>
+            {dangChay ? "Đang làm" : "Việc được chọn"}
+          </div>
+          <h2 className="viec-tieu-de" style={{ fontSize: 19, fontWeight: 600, lineHeight: 1.35, color: "var(--cream)", margin: "0 0 4px" }}>
+            {task.title}
+          </h2>
+          {task.deadline && (
+            <p className="mono" style={{ fontSize: 11.5, color: "var(--slate)", margin: "0 0 6px" }}>
+              Hạn: {new Date(task.deadline).toLocaleDateString("vi-VN")}
+            </p>
+          )}
+
+          {/* Các bước: tick được ngay trong lúc tập trung */}
+          {task.notes ? (
+            <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.6, color: "var(--cream)" }}>
+              {buoc.tong > 0 && (
+                <div className="mono" style={{ fontSize: 11, color: buoc.xong === buoc.tong ? "var(--teal)" : "var(--slate)", marginBottom: 6 }}>
+                  {buoc.xong}/{buoc.tong} bước
+                </div>
+              )}
+              <NotesView text={task.notes} onDoi={(moi) => onDoiGhiChu(task.id, moi)} />
+            </div>
+          ) : buocDeXuat === null ? (
+            <div style={{ marginTop: 12 }}>
+              <p style={{ fontSize: 13, color: "var(--slate)", margin: "0 0 10px" }}>
+                Việc này chưa có bước nào. Chia nhỏ ra sẽ dễ bắt đầu hơn.
+              </p>
+              <button
+                onClick={chiaBuoc}
+                disabled={dangChia}
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--amber)",
+                  color: "var(--amber)",
+                  borderRadius: 10,
+                  padding: "10px 16px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  minHeight: 44,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  opacity: dangChia ? 0.6 : 1
+                }}
+              >
+                {dangChia && <span className="spinner" aria-hidden="true" />}
+                {dangChia ? "Đang chia bước…" : `✨ Chia bước với ${TEN_TRO_LY}`}
+              </button>
+            </div>
+          ) : null}
+
+          {/* Đề xuất bước từ AI: duyệt rồi mới lưu */}
+          {buocDeXuat !== null && (
+            <div style={{ marginTop: 12 }}>
+              <div className="mono" style={{ fontSize: 10.5, color: "var(--amber)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>
+                {TEN_TRO_LY} đề xuất, anh duyệt
+              </div>
+              <ul style={{ margin: "0 0 12px", paddingLeft: 18 }}>
+                {buocDeXuat.map((b, i) => (
+                  <li key={i} style={{ fontSize: 13.5, color: "var(--cream)", marginBottom: 5, lineHeight: 1.4 }}>
+                    {b}
+                  </li>
+                ))}
+              </ul>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => {
+                    onDoiGhiChu(task.id, themBuocVaoGhiChu(task.notes, buocDeXuat));
+                    setBuocDeXuat(null);
+                  }}
+                  style={{
+                    background: "var(--amber)",
+                    color: "var(--navy)",
+                    border: "none",
+                    borderRadius: 10,
+                    padding: "10px 16px",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    minHeight: 44
+                  }}
+                >
+                  Dùng các bước này
+                </button>
+                <button
+                  onClick={() => setBuocDeXuat(null)}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid var(--line)",
+                    color: "var(--slate)",
+                    borderRadius: 10,
+                    padding: "10px 16px",
+                    fontSize: 13,
+                    minHeight: 44
+                  }}
+                >
+                  Bỏ qua
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <p role="alert" style={{ color: "var(--coral)", fontSize: 13, marginTop: 14 }}>
+            {error}
           </p>
         )}
 
-        {/* ----- Trạng thái: chọn thời lượng ----- */}
+        {/* ----- Điều khiển ----- */}
         {!dangChay && !hetGio && (
-          <>
-            <p style={{ fontSize: 14, color: "var(--slate)", margin: "18px 0 10px" }}>
-              Anh định tập trung bao lâu?
+          <div style={{ marginTop: 20 }}>
+            <p className="mono" style={{ fontSize: 11, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 10px" }}>
+              Thời lượng
             </p>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {PRESET_PHUT.map((p) => (
@@ -281,135 +432,76 @@ export default function FocusMode({
               ))}
             </div>
             <p style={{ fontSize: 12, color: "var(--slate)", marginTop: 14, lineHeight: 1.5 }}>
-              Màn hình sẽ được giữ sáng trong phiên. Nếu anh khóa máy, đồng hồ vẫn
-              tính đúng nhưng sẽ không có chuông khi hết giờ.
+              Màn hình được giữ sáng trong phiên. Nếu anh khóa máy, đồng hồ vẫn tính
+              đúng nhưng sẽ không có chuông khi hết giờ.
             </p>
-          </>
-        )}
-
-        {/* ----- Trạng thái: đang chạy ----- */}
-        {dangChay && (
-          <>
-            <div style={{ textAlign: "center", margin: "34px 0 10px" }}>
-              <div
-                className="mono"
-                aria-live="off"
-                style={{ fontSize: 72, fontWeight: 500, color: "var(--cream)", lineHeight: 1 }}
-              >
-                {mmss(conLai)}
-              </div>
-              <div style={{ height: 4, background: "var(--field)", borderRadius: 2, margin: "22px 0 8px" }}>
-                <div
-                  style={{ height: "100%", width: `${phanTram}%`, background: "var(--teal)", borderRadius: 2 }}
-                />
-              </div>
-              <p className="mono" style={{ fontSize: 11.5, color: "var(--slate)" }}>
-                phiên {phien!.phut} phút
-              </p>
-            </div>
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>
-              <button
-                onClick={() => ketThuc(false)}
-                style={{
-                  background: "transparent",
-                  border: "1px solid var(--line)",
-                  color: "var(--slate)",
-                  borderRadius: 10,
-                  padding: "11px 20px",
-                  fontSize: 13,
-                  minHeight: 44
-                }}
-              >
-                Kết thúc sớm
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* ----- Trạng thái: hết giờ ----- */}
-        {hetGio && !dangChay && (
-          <div style={{ textAlign: "center", margin: "30px 0" }}>
-            <p style={{ fontSize: 40, margin: 0 }}>🎉</p>
-            <p style={{ fontSize: 17, color: "var(--cream)", fontWeight: 600, margin: "8px 0 22px" }}>
-              Xong phiên {phutVuaXong} phút
-            </p>
-            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-              <button
-                onClick={() => {
-                  onXongViec(task.id);
-                  onClose();
-                }}
-                style={{
-                  background: "var(--teal)",
-                  color: "var(--navy)",
-                  border: "none",
-                  borderRadius: 10,
-                  padding: "12px 20px",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  minHeight: 48
-                }}
-              >
-                ✓ Việc này xong luôn
-              </button>
-              <button
-                onClick={() => setHetGio(false)}
-                style={{
-                  background: "transparent",
-                  border: "1px solid var(--line)",
-                  color: "var(--cream)",
-                  borderRadius: 10,
-                  padding: "12px 20px",
-                  fontSize: 14,
-                  minHeight: 48
-                }}
-              >
-                Tập trung tiếp
-              </button>
-              <button
-                onClick={onClose}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--slate)",
-                  fontSize: 13,
-                  minHeight: 48,
-                  padding: "0 10px"
-                }}
-              >
-                Đóng
-              </button>
-            </div>
           </div>
         )}
 
-        {error && (
-          <p role="alert" style={{ color: "var(--coral)", fontSize: 13, marginTop: 14 }}>
-            {error}
-          </p>
+        {dangChay && (
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 20 }}>
+            <button
+              onClick={() => ketThuc(false)}
+              style={{
+                background: "transparent",
+                border: "1px solid var(--line)",
+                color: "var(--slate)",
+                borderRadius: 10,
+                padding: "11px 20px",
+                fontSize: 13,
+                minHeight: 44
+              }}
+            >
+              Kết thúc sớm
+            </button>
+          </div>
         )}
 
-        {/* Ghi chú và các bước: đánh dấu được ngay trong lúc tập trung,
-            đây chính là cặp bài trùng với nút "Chia bước". */}
-        {task.notes && (
-          <div
-            style={{
-              marginTop: 22,
-              fontSize: 13.5,
-              lineHeight: 1.6,
-              color: "var(--cream)",
-              background: "var(--navy-2)",
-              border: "1px solid var(--line)",
-              borderRadius: 12,
-              padding: "12px 14px"
-            }}
-          >
-            <NotesView text={task.notes} onDoi={(moi) => onDoiGhiChu(task.id, moi)} />
+        {hetGio && !dangChay && (
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 20 }}>
+            <button
+              onClick={() => {
+                onXongViec(task.id);
+                onClose();
+              }}
+              style={{
+                background: "var(--teal)",
+                color: "var(--navy)",
+                border: "none",
+                borderRadius: 10,
+                padding: "12px 20px",
+                fontSize: 14,
+                fontWeight: 700,
+                minHeight: 48
+              }}
+            >
+              ✓ Việc này xong luôn
+            </button>
+            <button
+              onClick={() => setHetGio(false)}
+              style={{
+                background: "transparent",
+                border: "1px solid var(--line)",
+                color: "var(--cream)",
+                borderRadius: 10,
+                padding: "12px 20px",
+                fontSize: 14,
+                minHeight: 48
+              }}
+            >
+              Tập trung tiếp
+            </button>
+            <button
+              onClick={onClose}
+              style={{ background: "transparent", border: "none", color: "var(--slate)", fontSize: 13, minHeight: 48, padding: "0 10px" }}
+            >
+              Đóng
+            </button>
           </div>
         )}
 
         {homNay && homNay.giay > 0 && (
-          <p className="mono" style={{ fontSize: 11.5, color: "var(--slate)", textAlign: "center", marginTop: 24 }}>
+          <p className="mono" style={{ fontSize: 11.5, color: "var(--slate)", textAlign: "center", marginTop: 26 }}>
             Hôm nay đã tập trung {Math.round(homNay.giay / 60)} phút · {homNay.phien} phiên
           </p>
         )}

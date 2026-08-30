@@ -1,23 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 :root {
-  --navy: #0F1B2A;
-  --navy-2: #16263A;
-  --cream: #F7F4EE;
-  --amber: #E8A33D;
+  /* Bảng màu tối tối giản (gần đen, một màu nhấn cyan). Toàn bộ màu chữ đã
+     kiểm bằng công thức WCAG 2.1, đạt AA 4.5:1 trên cả ba nền bên dưới.
+     LƯU Ý TÊN BIẾN: giữ tên cũ (--navy, --amber...) để không phải sửa hàng
+     chục component; giá trị thì đã đổi. --amber nay là màu nhấn cyan. */
+  --navy: #0A0B0D;      /* nền trang */
+  --navy-2: #15171A;    /* nền thẻ */
+  --field: #1D2024;     /* nền ô nhập, khối lồng trong thẻ */
+  --cream: #F2F3F5;     /* chữ chính, 17.7:1 */
+  --slate: #8A94A0;     /* chữ phụ, 6.4:1 */
+  --amber: #22D3EE;     /* màu nhấn: nút chính, link, focus ring */
+  --teal: #34B27D;      /* xong, "Lên lịch" */
+  --coral: #E86A50;     /* khẩn cấp, lỗi, "Làm ngay" */
+  --line: rgba(255, 255, 255, 0.08);
 
-  /* Ba màu dưới đã được làm sáng để đạt WCAG AA 4.5:1 trên cả ba nền
-     (--navy, --navy-2, --field). Giá trị cũ #3F7268 / #D9634B chỉ đạt
-     2.78:1 và 4.25:1, chữ nhỏ gần như không đọc được.
-     Sắc độ giữ nguyên, chỉ tăng độ sáng, nên tông thiết kế không đổi. */
-  --teal: #5AA394;
-  --coral: #DE7964;
-  --slate: #8C96A2;
-
-  --line: rgba(247, 244, 238, 0.14);
-  --field: #1F2F42;
-
-  --font-display: 'Fraunces', serif;
+  --font-display: 'Inter', sans-serif;
   --font-body: 'Inter', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
 
@@ -39,9 +37,8 @@ html, body {
 }
 
 /* Khi mở từ icon màn hình chính trên iPhone, app chạy toàn màn hình và thanh
-   trạng thái nằm ĐÈ lên nội dung (do statusBarStyle black-translucent kết hợp
-   viewport-fit cover). Không chừa chỗ thì dòng "HPPRIO" chui vào dưới đồng hồ
-   và tai thỏ. Trong trình duyệt thường các giá trị này bằng 0 nên không đổi gì. */
+   trạng thái nằm ĐÈ lên nội dung. Không chừa chỗ thì tiêu đề chui vào dưới
+   đồng hồ và tai thỏ. Trong trình duyệt thường các giá trị này bằng 0. */
 body {
   padding-top: env(safe-area-inset-top, 0px);
   padding-left: env(safe-area-inset-left, 0px);
@@ -55,8 +52,8 @@ button {
   cursor: pointer;
 }
 
-/* Trình duyệt mặc định vẽ placeholder mờ đi (khoảng 54% độ mờ), kéo tương phản
-   xuống ~3.3:1 dù màu chữ đã đạt chuẩn. Đặt màu tường minh để giành lại. */
+/* Trình duyệt mặc định vẽ placeholder mờ đi, kéo tương phản xuống dưới chuẩn
+   dù màu chữ đã đạt. Đặt màu tường minh để giành lại. */
 input::placeholder,
 textarea::placeholder {
   color: var(--slate);
@@ -64,10 +61,8 @@ textarea::placeholder {
 }
 
 /* Danh sách xổ xuống của <select> được trình duyệt vẽ ở tầng riêng, KHÔNG nằm
-   trong thẻ cha nên không thừa hưởng nền tối. Không đặt màu ở đây thì chữ màu
-   kem rơi xuống nền trắng mặc định và gần như không đọc được.
-   Phải đặt cả trên <select> lẫn <option>: Windows lấy màu từ option, còn một
-   số bản Linux/Firefox lại lấy từ select. */
+   trong thẻ cha nên không thừa hưởng nền tối. Phải đặt cả trên <select> lẫn
+   <option>: Windows lấy màu từ option, một số bản Linux/Firefox lấy từ select. */
 select,
 select option {
   background-color: var(--field);
@@ -76,7 +71,7 @@ select option {
 
 select option:checked,
 select option:hover {
-  background-color: var(--teal);
+  background-color: var(--amber);
   color: var(--navy);
 }
 
@@ -108,68 +103,15 @@ select option:hover {
   border: 0;
 }
 
-/* Ma trận LUÔN giữ bố cục 2x2 ở mọi bề rộng. Chính vị trí trên/dưới, trái/phải
-   mới là thứ truyền tải ý nghĩa của ma trận Eisenhower; xếp thành một cột dọc
-   là mất hết. Màn hẹp thì rút gọn nội dung thẻ chứ không đổi bố cục. */
-.quadrants {
-  display: grid;
-  /* PHẢI là minmax(0, 1fr) chứ không phải 1fr. Ô lưới mặc định có
-     min-width: auto, nghĩa là không co nhỏ hơn từ dài nhất bên trong. Một tiêu
-     đề việc dài là đủ làm cột phình ra và cả trang tràn ngang trên điện thoại. */
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
-}
-
-/* Chốt thứ hai: cho phép ngắt giữa từ khi cần, để không từ nào ép rộng cột. */
-.quadrants section,
+/* Tiêu đề việc: cho phép ngắt giữa từ khi cần, để không từ nào (URL dài,
+   mã số) ép giao diện tràn ngang trên điện thoại. */
 .viec-tieu-de {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-/* Danh sách việc trong mỗi ô tự cuộn. Giá trị của ma trận Eisenhower là nhìn
-   thấy cả 4 góc cùng lúc; để ô dài ra tự do thì phải cuộn 3-4 màn hình mới
-   thấy hết, mất hẳn ý nghĩa so sánh. */
-.o-danh-sach {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 46vh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-@media (max-width: 559px) {
-  .quadrants { gap: 8px; }
-  .quadrants > section { padding: 10px !important; }
-  /* Ẩn phụ đề và câu gợi ý để nhường chỗ cho tiêu đề việc */
-  .o-phu-de,
-  .o-goi-y { display: none; }
-  .o-danh-sach { max-height: 38vh; }
-}
-
-/* Dưới 480px, hai pill và nút ghi chú bị bóp còn ~29px, nằm sát nút Xóa.
-   Thu chữ lại chỉ còn dấu hiệu, nhưng GIỮ NGUYÊN vùng chạm 44px và nhãn cho
-   trình đọc màn hình. Bố cục 2x2 không đổi. */
-@media (max-width: 479px) {
-  .pill-chu { display: none; }
-  .pill-cham {
-    display: inline-block;
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: currentColor;
-  }
-  .viec-nut-nho .nut-chu { display: none; }
-  /* Tách nút Xóa ra xa các nút khác để bớt bấm nhầm */
-  .viec-hang-duoi { gap: 14px !important; }
-}
-
-.pill-cham { display: none; }
-
-/* Toast hoàn tác luôn nằm trong tầm mắt, kể cả khi đang cuộn giữa ma trận.
-   Đẩy lên 84px để không đè lên nút nổi gọi trợ lý ở góc dưới, và chừa chỗ cho
-   thanh điều hướng của trình duyệt trên điện thoại. */
+/* Toast hoàn tác luôn nằm trong tầm mắt, kể cả khi đang cuộn giữa danh sách.
+   Đẩy lên 84px để không đè lên nút nổi gọi trợ lý ở góc dưới. */
 .toast-hoan-tac {
   position: fixed;
   left: 50%;
@@ -177,7 +119,7 @@ select option:hover {
   bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   z-index: 50;
   width: min(560px, calc(100vw - 32px));
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
 }
 
 /* Nút nổi gọi trợ lý, cố định góc dưới phải */
@@ -198,7 +140,7 @@ select option:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
 }
 
 /* Khung nhập việc trượt lên từ đáy màn hình */
@@ -206,7 +148,7 @@ select option:hover {
   position: fixed;
   inset: 0;
   z-index: 55;
-  background: rgba(5, 10, 17, 0.62);
+  background: rgba(0, 0, 0, 0.6);
 }
 
 .sheet-noi-dung {

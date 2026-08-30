@@ -4,7 +4,7 @@ import { signOut } from "next-auth/react";
 import { docLoi, loiThanThien } from "@/lib/client-api";
 import { TEN_TRO_LY } from "@/lib/branding";
 import TaskInput from "./TaskInput";
-import QuadrantBoard, { type Task } from "./QuadrantBoard";
+import TaskList, { type Task } from "./TaskList";
 import AnalysisPanel from "./AnalysisPanel";
 import PushSetup from "./PushSetup";
 import TrashPanel from "./TrashPanel";
@@ -21,9 +21,10 @@ export default function Dashboard({ userName }: { userName: string }) {
   const [nhipLamMoi, setNhipLamMoi] = useState(0);
   const [dem, setDem] = useState<Record<string, number>>({ open: 0, done: 0, deleted: 0 });
 
-  // Bộ lọc nhanh. Lọc ngay trên danh sách đã tải nên không tốn thêm request.
+  // Bộ lọc và sắp xếp nhanh, chạy ngay trên danh sách đã tải nên không tốn request.
   const [tuKhoa, setTuKhoa] = useState("");
   const [nhan, setNhan] = useState<"tat-ca" | "work" | "personal">("tat-ca");
+  const [sapXep, setSapXep] = useState<"uu-tien" | "han-chot" | "moi-nhat">("uu-tien");
 
   // Khung nhập việc nay nằm sau nút nổi "Bé iu", không chiếm màn hình chính nữa.
   const [moBeIu, setMoBeIu] = useState(false);
@@ -67,13 +68,32 @@ export default function Dashboard({ userName }: { userName: string }) {
     return () => window.removeEventListener("keydown", dong);
   }, []);
 
-  const dsHienThi = tasks.filter((t) => {
-    if (nhan !== "tat-ca" && t.category !== nhan) return false;
-    const k = tuKhoa.trim().toLowerCase();
-    if (!k) return true;
-    return (t.title + " " + (t.notes ?? "")).toLowerCase().includes(k);
-  });
+  // Thứ tự nhóm Eisenhower: Làm ngay -> Lên lịch -> Giao bớt -> Cân nhắc bỏ
+  const thuTuNhom = (t: Task) =>
+    t.user_urgent && t.user_important ? 0 : !t.user_urgent && t.user_important ? 1 : t.user_urgent ? 2 : 3;
+  const mocHan = (t: Task) => (t.deadline ? new Date(t.deadline).getTime() : Number.POSITIVE_INFINITY);
+
+  const dsHienThi = tasks
+    .filter((t) => {
+      if (nhan !== "tat-ca" && t.category !== nhan) return false;
+      const k = tuKhoa.trim().toLowerCase();
+      if (!k) return true;
+      return (t.title + " " + (t.notes ?? "")).toLowerCase().includes(k);
+    })
+    .sort((a, b) => {
+      if (sapXep === "moi-nhat") return (b.created_at ?? "").localeCompare(a.created_at ?? "");
+      if (sapXep === "han-chot") {
+        // Việc không có hạn xuống cuối; cùng hạn thì xếp theo nhóm ưu tiên
+        if (mocHan(a) !== mocHan(b)) return mocHan(a) - mocHan(b);
+        return thuTuNhom(a) - thuTuNhom(b);
+      }
+      // "uu-tien": nhóm trước, trong nhóm thì hạn gần lên trên, rồi việc mới lên trên
+      if (thuTuNhom(a) !== thuTuNhom(b)) return thuTuNhom(a) - thuTuNhom(b);
+      if (mocHan(a) !== mocHan(b)) return mocHan(a) - mocHan(b);
+      return (b.created_at ?? "").localeCompare(a.created_at ?? "");
+    });
   const dangLoc = tuKhoa.trim() !== "" || nhan !== "tat-ca";
+  const soLamNgay = tasks.filter((t) => t.user_urgent && t.user_important).length;
 
   // Tra theo id để màn tập trung luôn thấy bản task mới nhất. Việc biến mất
   // khỏi danh sách (vừa đánh dấu xong, vừa xóa) thì màn tập trung tự đóng.
@@ -227,17 +247,26 @@ export default function Dashboard({ userName }: { userName: string }) {
   }
 
   return (
-    // 720px cố định để trống 44% màn hình ở 1280px và làm tiêu đề việc gãy nhiều
-    // dòng. Cho khung rộng tới 1040px trên màn lớn, mobile vẫn giữ nguyên.
-    <main style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 16px 60px" }}>
+    // Danh sách dọc đọc thoải mái nhất trong một cột hẹp; 1040px là di sản của
+    // bố cục ma trận 2x2 cũ, nay thu về 680px.
+    <main style={{ maxWidth: 680, margin: "0 auto", padding: "24px 16px 80px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 22 }}>
         <div>
           <div className="mono" style={{ fontSize: 11.5, color: "var(--teal)", letterSpacing: "0.12em" }}>
             HPPRIO
           </div>
-          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 24, margin: "2px 0 0", color: "var(--cream)" }}>
+          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 700, letterSpacing: "-0.01em", margin: "2px 0 0", color: "var(--cream)" }}>
             Chào {userName.split(" ")[0] || userName}
           </h1>
+          {!loading && (
+            <p style={{ fontSize: 13.5, color: "var(--slate)", margin: "4px 0 0" }}>
+              {soLamNgay > 0
+                ? `Anh có ${soLamNgay} việc cần làm ngay hôm nay.`
+                : tasks.length > 0
+                  ? "Không có việc nào khẩn cấp, anh chủ động được lịch hôm nay."
+                  : "Hôm nay chưa có việc nào."}
+            </p>
+          )}
         </div>
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
@@ -347,8 +376,8 @@ export default function Dashboard({ userName }: { userName: string }) {
       )}
 
       <div style={{ marginTop: 26, marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <h2 style={{ fontFamily: "var(--font-display)", fontSize: 18, color: "var(--cream)", margin: 0 }}>
-          Ma trận ưu tiên
+        <h2 className="mono" style={{ fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--slate)", margin: 0 }}>
+          Việc cần làm
         </h2>
         <span className="mono" style={{ fontSize: 11.5, color: "var(--slate)" }}>
           {dangLoc ? `${dsHienThi.length}/${tasks.length}` : tasks.length} việc mở
@@ -356,46 +385,78 @@ export default function Dashboard({ userName }: { userName: string }) {
         </span>
       </div>
 
-      {/* Bộ lọc nhanh. Chỉ hiện khi đã có kha khá việc, dưới ngưỡng đó thì
+      {/* Bộ lọc và sắp xếp. Chỉ hiện khi đã có vài việc, dưới ngưỡng đó thì
           cuộn mắt nhanh hơn là gõ tìm. */}
-      {tasks.length >= 8 && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-          <input
-            value={tuKhoa}
-            onChange={(e) => setTuKhoa(e.target.value)}
-            placeholder="Tìm trong tiêu đề và ghi chú..."
-            aria-label="Tìm việc"
-            style={{
-              flex: "1 1 180px",
-              background: "var(--field)",
-              border: "1px solid var(--line)",
-              borderRadius: 8,
-              padding: "10px 12px",
-              color: "var(--cream)",
-              fontSize: 13.5,
-              minHeight: 44,
-              fontFamily: "var(--font-body)"
-            }}
-          />
-          <div style={{ display: "flex", gap: 6 }}>
+      {tasks.length >= 4 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              value={tuKhoa}
+              onChange={(e) => setTuKhoa(e.target.value)}
+              placeholder="Tìm trong tiêu đề và ghi chú..."
+              aria-label="Tìm việc"
+              style={{
+                flex: "1 1 180px",
+                background: "var(--field)",
+                border: "1px solid var(--line)",
+                borderRadius: 10,
+                padding: "10px 12px",
+                color: "var(--cream)",
+                fontSize: 13.5,
+                minHeight: 44,
+                fontFamily: "var(--font-body)"
+              }}
+            />
+            <div style={{ display: "flex", gap: 6 }}>
+              {([
+                ["tat-ca", "Tất cả"],
+                ["work", "🏢 Cơ quan"],
+                ["personal", "🏠 Cá nhân"]
+              ] as const).map(([ma, ten]) => (
+                <button
+                  key={ma}
+                  onClick={() => setNhan(ma)}
+                  aria-pressed={nhan === ma}
+                  style={{
+                    background: nhan === ma ? "var(--field)" : "transparent",
+                    border: `1px solid ${nhan === ma ? "var(--amber)" : "var(--line)"}`,
+                    color: nhan === ma ? "var(--cream)" : "var(--slate)",
+                    borderRadius: 10,
+                    padding: "8px 12px",
+                    fontSize: 12.5,
+                    fontWeight: nhan === ma ? 600 : 400,
+                    minHeight: 44
+                  }}
+                >
+                  {ten}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <span className="mono" style={{ fontSize: 11, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              Xếp theo
+            </span>
             {([
-              ["tat-ca", "Tất cả"],
-              ["work", "🏢 Cơ quan"],
-              ["personal", "🏠 Cá nhân"]
+              ["uu-tien", "Ưu tiên"],
+              ["han-chot", "Hạn chót"],
+              ["moi-nhat", "Mới thêm"]
             ] as const).map(([ma, ten]) => (
               <button
                 key={ma}
-                onClick={() => setNhan(ma)}
-                aria-pressed={nhan === ma}
+                onClick={() => setSapXep(ma)}
+                aria-pressed={sapXep === ma}
                 style={{
-                  background: nhan === ma ? "var(--teal)" : "transparent",
-                  border: `1px solid ${nhan === ma ? "var(--teal)" : "var(--line)"}`,
-                  color: nhan === ma ? "var(--navy)" : "var(--slate)",
-                  borderRadius: 8,
-                  padding: "8px 12px",
+                  background: "transparent",
+                  border: "none",
+                  color: sapXep === ma ? "var(--amber)" : "var(--slate)",
                   fontSize: 12.5,
-                  fontWeight: nhan === ma ? 700 : 400,
-                  minHeight: 44
+                  fontWeight: sapXep === ma ? 700 : 400,
+                  minHeight: 40,
+                  padding: "0 8px",
+                  textDecoration: sapXep === ma ? "underline" : "none",
+                  textUnderlineOffset: 4
                 }}
               >
                 {ten}
@@ -408,7 +469,7 @@ export default function Dashboard({ userName }: { userName: string }) {
       {loading ? (
         <p style={{ color: "var(--slate)" }}>Đang tải…</p>
       ) : (
-        <QuadrantBoard
+        <TaskList
           tasks={dsHienThi}
           onDone={handleDone}
           onDelete={handleDelete}
