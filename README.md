@@ -1,6 +1,12 @@
 # HPPrio
 
-Trợ lý ưu tiên hóa công việc cá nhân — nói/gõ việc cần làm, AI (Gemini) tự phân loại khẩn cấp/quan trọng theo ma trận Eisenhower, bạn duyệt và hành động. PWA, cài được lên iPhone như app thật.
+Trợ lý ưu tiên hóa công việc cá nhân: nói/gõ việc cần làm, AI (Gemini) tự phân loại khẩn cấp/quan trọng theo ma trận Eisenhower, bạn duyệt và hành động. PWA, cài được lên iPhone như app thật.
+
+Tính năng chính:
+- **Trợ lý "Bé iu"**: nút nổi góc dưới màn hình, mở khung nhập việc (gõ hoặc đọc chính tả), AI phân tích rồi bạn duyệt trước khi lưu. Tên trợ lý đổi được một dòng trong `lib/branding.ts`.
+- **Ma trận ưu tiên 2x2** kèm bộ lọc, mục Đã xong, Thùng rác (giữ 30 ngày), hoàn tác.
+- **Chế độ tập trung (deep work)**: bấm ▶ trên một việc, chọn 15/25/50 phút, màn hình chỉ còn việc đó cùng các bước; ghi lại tổng thời gian tập trung mỗi ngày. Lưu ý: nếu khóa máy giữa phiên, đồng hồ vẫn tính đúng nhưng không có chuông khi hết giờ (giới hạn của nền tảng web, cần Vercel Pro mới đặt được push theo phút).
+- **Chia bước bằng AI**: nút ✨ trên mỗi việc, AI đề xuất các bước dạng danh sách đánh dấu (checklist) trong ghi chú, bạn duyệt rồi lưu, tích dần từng bước kể cả trong lúc tập trung.
 
 **Kiến trúc:** Next.js (App Router) + Vercel Postgres + Gemini API — 100% serverless, deploy trên Vercel.
 

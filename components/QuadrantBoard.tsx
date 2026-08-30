@@ -1,6 +1,9 @@
 "use client";
 import { useRef, useState } from "react";
-import Linkify from "./Linkify";
+import NotesView from "./NotesView";
+import { demBuoc, themBuocVaoGhiChu } from "@/lib/checklist";
+import { docLoi, loiThanThien } from "@/lib/client-api";
+import { TEN_TRO_LY } from "@/lib/branding";
 
 export type Task = {
   id: string;
@@ -67,12 +70,14 @@ export default function QuadrantBoard({
   tasks,
   onDone,
   onDelete,
-  onReclassify
+  onReclassify,
+  onFocus
 }: {
   tasks: Task[];
   onDone: (id: string) => void;
   onDelete: (id: string) => void;
   onReclassify: (id: string, patch: ReclassifyPatch) => void;
+  onFocus: (task: Task) => void;
 }) {
   const lanBamCuoi = useRef(0);
 
@@ -87,7 +92,7 @@ export default function QuadrantBoard({
     return (
       <div style={{ padding: "60px 20px", textAlign: "center", color: "var(--slate)" }}>
         <p style={{ fontFamily: "var(--font-display)", fontSize: 22, color: "var(--cream)" }}>Chưa có việc nào.</p>
-        <p>Nhập việc đầu tiên ở ô phía trên.</p>
+        <p>Bấm nút “✨ {TEN_TRO_LY}” ở góc dưới màn hình để thêm việc đầu tiên.</p>
       </div>
     );
   }
@@ -145,6 +150,7 @@ export default function QuadrantBoard({
                   onDone={danhDauXong}
                   onDelete={onDelete}
                   onReclassify={onReclassify}
+                  onFocus={onFocus}
                 />
               ))}
             </div>
@@ -159,17 +165,47 @@ function TaskRow({
   task,
   onDone,
   onDelete,
-  onReclassify
+  onReclassify,
+  onFocus
 }: {
   task: Task;
   onDone: (id: string) => void;
   onDelete: (id: string) => void;
   onReclassify: (id: string, patch: ReclassifyPatch) => void;
+  onFocus: (task: Task) => void;
 }) {
   const overdue = task.deadline ? new Date(task.deadline) < new Date() : false;
   const [moRong, setMoRong] = useState(false);
   const [dangSua, setDangSua] = useState(false);
   const [nhap, setNhap] = useState(task.notes ?? "");
+  const [dangChia, setDangChia] = useState(false);
+  const [loiChia, setLoiChia] = useState<string | null>(null);
+  const buoc = demBuoc(task.notes);
+
+  // Nhờ AI chia việc thành các bước. Kết quả KHÔNG được lưu thẳng: nó đổ vào
+  // ô sửa ghi chú để người dùng duyệt và chỉnh rồi mới bấm Lưu, đúng nguyên
+  // tắc "AI đề xuất, anh duyệt" của toàn app.
+  async function chiaBuoc() {
+    if (dangChia) return;
+    setDangChia(true);
+    setLoiChia(null);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/breakdown`, { method: "POST" });
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (!res.ok) throw new Error(await docLoi(res));
+      const data = await res.json();
+      setNhap(themBuocVaoGhiChu(task.notes, data.steps ?? []));
+      setDangSua(true);
+      setMoRong(true);
+    } catch (e: any) {
+      setLoiChia(loiThanThien(e));
+    } finally {
+      setDangChia(false);
+    }
+  }
 
   // Bỏ window.confirm: hộp thoại hệ thống chặn luồng, không theo giao diện app,
   // và vẫn không cứu được khi bấm nhầm. Thay bằng băng "Hoàn tác" 6 giây ở
@@ -200,16 +236,28 @@ function TaskRow({
           {task.title}
         </span>
         {/* class "tap" mở vùng chạm ra 44x44px theo WCAG 2.5.5, icon vẫn nhỏ.
-            Trước đây vùng bấm chỉ 12x21px, rất dễ bấm trượt trên điện thoại. */}
-        <button
-          onClick={() => onDone(task.id)}
-          title="Đánh dấu xong"
-          aria-label={`Đánh dấu xong: ${task.title}`}
-          className="tap"
-          style={{ background: "none", border: "none", color: "var(--teal)", fontSize: 18, flexShrink: 0, padding: 0, margin: -10 }}
-        >
-          ✓
-        </button>
+            Hai nút cạnh nhau chỉ thu lề dọc, giữ nguyên bề ngang 44px để vùng
+            chạm không chồng lên nhau. */}
+        <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+          <button
+            onClick={() => onFocus(task)}
+            title="Tập trung vào việc này"
+            aria-label={`Tập trung vào: ${task.title}`}
+            className="tap"
+            style={{ background: "none", border: "none", color: "var(--amber)", fontSize: 13, padding: 0, margin: "-10px 0" }}
+          >
+            ▶
+          </button>
+          <button
+            onClick={() => onDone(task.id)}
+            title="Đánh dấu xong"
+            aria-label={`Đánh dấu xong: ${task.title}`}
+            className="tap"
+            style={{ background: "none", border: "none", color: "var(--teal)", fontSize: 18, padding: 0, margin: "-10px -10px -10px 0" }}
+          >
+            ✓
+          </button>
+        </div>
       </div>
 
       {/* Cho phép sửa lại phân loại nếu AI đoán sai hoặc mức ưu tiên thay đổi */}
@@ -274,15 +322,20 @@ function TaskRow({
               background: "rgba(0,0,0,0.18)",
               borderRadius: 8,
               padding: "8px 10px",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
               maxHeight: 260,
               overflowY: "auto"
             }}
           >
-            <Linkify text={task.notes} />
+            {/* Dòng "- [ ]" thành ô đánh dấu bấm được ngay tại đây */}
+            <NotesView text={task.notes} onDoi={(moi) => onReclassify(task.id, { notes: moi })} />
           </div>
         )
+      )}
+
+      {loiChia && (
+        <p role="alert" style={{ color: "var(--coral)", fontSize: 11.5, margin: 0 }}>
+          {loiChia}
+        </p>
       )}
 
       <div className="viec-hang-duoi" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -302,11 +355,17 @@ function TaskRow({
                 title={moRong ? "Thu gọn ghi chú" : "Xem ghi chú"}
                 style={{ ...nutChuThich, color: "var(--amber)" }}
               >
-                📎 <span className="nut-chu">{moRong ? "Thu gọn" : "Ghi chú"}</span>
+                {/* Có checklist thì hiện tiến độ ngay trên nhãn, cả khi thu gọn.
+                    Số đếm nằm ngoài .nut-chu nên màn hẹp vẫn thấy. */}
+                📎{buoc.tong > 0 ? ` ${buoc.xong}/${buoc.tong}` : ""}{" "}
+                <span className="nut-chu">{moRong ? "Thu gọn" : buoc.tong > 0 ? "bước" : "Ghi chú"}</span>
               </button>
             ) : (
               <button
-                onClick={() => setDangSua(true)}
+                onClick={() => {
+                  setNhap(task.notes ?? "");
+                  setDangSua(true);
+                }}
                 className="mono"
                 title="Thêm ghi chú"
                 style={nutChuThich}
@@ -316,8 +375,31 @@ function TaskRow({
               </button>
             ))}
           {!dangSua && task.notes && moRong && (
-            <button onClick={() => setDangSua(true)} className="mono" title="Sửa ghi chú" style={nutChuThich}>
+            <button
+              onClick={() => {
+                // Lấy bản MỚI NHẤT lúc mở, không dùng state cũ: người dùng vừa
+                // đánh dấu checklist thì notes đã đổi từ bên ngoài.
+                setNhap(task.notes ?? "");
+                setDangSua(true);
+              }}
+              className="mono"
+              title="Sửa ghi chú"
+              style={nutChuThich}
+            >
               Sửa
+            </button>
+          )}
+          {!dangSua && (
+            <button
+              onClick={chiaBuoc}
+              disabled={dangChia}
+              className="mono"
+              title={`Nhờ ${TEN_TRO_LY} chia việc này thành các bước`}
+              aria-label={`Chia việc thành các bước: ${task.title}`}
+              style={{ ...nutChuThich, opacity: dangChia ? 0.6 : 1 }}
+            >
+              {dangChia ? <span className="spinner" aria-hidden="true" /> : "✨"}{" "}
+              <span className="nut-chu">{dangChia ? "Đang chia…" : "Chia bước"}</span>
             </button>
           )}
         </div>

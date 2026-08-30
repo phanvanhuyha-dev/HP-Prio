@@ -1,13 +1,15 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { signOut } from "next-auth/react";
 import { docLoi, loiThanThien } from "@/lib/client-api";
+import { TEN_TRO_LY } from "@/lib/branding";
 import TaskInput from "./TaskInput";
 import QuadrantBoard, { type Task } from "./QuadrantBoard";
 import AnalysisPanel from "./AnalysisPanel";
 import PushSetup from "./PushSetup";
 import TrashPanel from "./TrashPanel";
 import DonePanel from "./DonePanel";
+import FocusMode, { docPhienDangDo, xoaPhienDangDo, type PhienTapTrung } from "./FocusMode";
 
 export default function Dashboard({ userName }: { userName: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -23,6 +25,48 @@ export default function Dashboard({ userName }: { userName: string }) {
   const [tuKhoa, setTuKhoa] = useState("");
   const [nhan, setNhan] = useState<"tat-ca" | "work" | "personal">("tat-ca");
 
+  // Khung nhập việc nay nằm sau nút nổi "Bé iu", không chiếm màn hình chính nữa.
+  const [moBeIu, setMoBeIu] = useState(false);
+  // Chế độ tập trung: lưu id để luôn đọc bản task MỚI NHẤT từ danh sách
+  // (đánh dấu checklist trong lúc tập trung cần thấy thay đổi ngay).
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [phienKhoiPhuc, setPhienKhoiPhuc] = useState<PhienTapTrung | null>(null);
+  const daKiemTraPhien = useRef(false);
+
+  // App bị đóng giữa phiên tập trung (chuyện thường với PWA trên iOS) thì mở
+  // lại tiếp tục đúng chỗ, nhờ phiên đã lưu trong localStorage.
+  useEffect(() => {
+    if (loading || daKiemTraPhien.current) return;
+    daKiemTraPhien.current = true;
+    const p = docPhienDangDo();
+    if (!p) return;
+    if (tasks.some((t) => t.id === p.taskId)) {
+      setPhienKhoiPhuc(p);
+      setFocusId(p.taskId);
+    } else {
+      // Việc đã xong hoặc đã xóa trong lúc vắng mặt thì phiên không còn nghĩa
+      xoaPhienDangDo();
+    }
+  }, [loading, tasks]);
+
+  // Khóa cuộn trang nền khi có lớp phủ, không thì trên iOS nền vẫn trượt theo.
+  useEffect(() => {
+    if (!moBeIu && !focusId) return;
+    const cu = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = cu;
+    };
+  }, [moBeIu, focusId]);
+
+  useEffect(() => {
+    const dong = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMoBeIu(false);
+    };
+    window.addEventListener("keydown", dong);
+    return () => window.removeEventListener("keydown", dong);
+  }, []);
+
   const dsHienThi = tasks.filter((t) => {
     if (nhan !== "tat-ca" && t.category !== nhan) return false;
     const k = tuKhoa.trim().toLowerCase();
@@ -31,7 +75,18 @@ export default function Dashboard({ userName }: { userName: string }) {
   });
   const dangLoc = tuKhoa.trim() !== "" || nhan !== "tat-ca";
 
+  // Tra theo id để màn tập trung luôn thấy bản task mới nhất. Việc biến mất
+  // khỏi danh sách (vừa đánh dấu xong, vừa xóa) thì màn tập trung tự đóng.
+  const focusTask = focusId ? tasks.find((t) => t.id === focusId) ?? null : null;
+  useEffect(() => {
+    if (focusId && !loading && !tasks.some((t) => t.id === focusId)) {
+      setFocusId(null);
+      setPhienKhoiPhuc(null);
+    }
+  }, [focusId, loading, tasks]);
+
   function handleSaved(tieuDe: string) {
+    setMoBeIu(false);
     setDaLuu(tieuDe);
     setTimeout(() => setDaLuu(null), 4000);
     loadTasks();
@@ -203,8 +258,6 @@ export default function Dashboard({ userName }: { userName: string }) {
         <PushSetup />
       </div>
 
-      <TaskInput onSaved={handleSaved} />
-
       {/* Trước đây lưu xong không có xác nhận nào, người dùng phải tự dò trong
           ma trận xem việc đã vào chưa. */}
       {daLuu && (
@@ -360,6 +413,10 @@ export default function Dashboard({ userName }: { userName: string }) {
           onDone={handleDone}
           onDelete={handleDelete}
           onReclassify={handleReclassify}
+          onFocus={(t) => {
+            setPhienKhoiPhuc(null);
+            setFocusId(t.id);
+          }}
         />
       )}
 
@@ -397,6 +454,55 @@ export default function Dashboard({ userName }: { userName: string }) {
       />
 
       <AnalysisPanel />
+
+      {/* Nút nổi gọi trợ lý, thay cho ô nhập luôn chiếm màn hình chính */}
+      {!moBeIu && !focusTask && (
+        <button className="fab-beiu" onClick={() => setMoBeIu(true)} aria-label={`Thêm việc với ${TEN_TRO_LY}`}>
+          ✨ {TEN_TRO_LY}
+        </button>
+      )}
+
+      {/* Khung nhập việc trượt lên từ đáy màn hình */}
+      {moBeIu && (
+        <div className="sheet-lop-phu" onClick={() => setMoBeIu(false)}>
+          <div
+            className="sheet-noi-dung"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Thêm việc với ${TEN_TRO_LY}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontFamily: "var(--font-display)", fontSize: 17, color: "var(--cream)" }}>
+                ✨ {TEN_TRO_LY}
+              </span>
+              <button
+                onClick={() => setMoBeIu(false)}
+                className="tap"
+                aria-label="Đóng"
+                style={{ background: "none", border: "none", color: "var(--slate)", fontSize: 17, margin: -10 }}
+              >
+                ✕
+              </button>
+            </div>
+            <TaskInput onSaved={handleSaved} />
+          </div>
+        </div>
+      )}
+
+      {/* Chế độ tập trung, phủ toàn màn hình */}
+      {focusTask && (
+        <FocusMode
+          task={focusTask}
+          phienCu={phienKhoiPhuc}
+          onClose={() => {
+            setFocusId(null);
+            setPhienKhoiPhuc(null);
+          }}
+          onXongViec={handleDone}
+          onDoiGhiChu={(id, notes) => handleReclassify(id, { notes })}
+        />
+      )}
     </main>
   );
 }

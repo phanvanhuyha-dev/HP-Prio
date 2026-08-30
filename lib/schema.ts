@@ -55,7 +55,22 @@ export const CAU_LENH_SCHEMA: string[] = [
      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
 
-  `CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions (user_email)`
+  `CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions (user_email)`,
+
+  // Phiên tập trung (deep work). task_title là ảnh chụp tiêu đề tại thời điểm
+  // bắt đầu: việc có thể bị xóa mềm rồi dọn hẳn sau 30 ngày, nhưng lịch sử
+  // "hôm đó đã tập trung vào việc gì" thì nên giữ nguyên.
+  `CREATE TABLE IF NOT EXISTS focus_sessions (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     user_email TEXT NOT NULL,
+     task_id UUID,
+     task_title TEXT NOT NULL,
+     planned_minutes INT NOT NULL,
+     started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     ended_at TIMESTAMPTZ,
+     seconds INT
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_focus_user_time ON focus_sessions (user_email, started_at)`
 ];
 
 // Các cột mà code đang dựa vào. /api/health đối chiếu danh sách này với cấu trúc
@@ -67,7 +82,11 @@ export const COT_BAT_BUOC: Record<string, string[]> = {
     "ai_reasoning", "user_urgent", "user_important", "reminder_sent_at",
     "created_at", "updated_at"
   ],
-  push_subscriptions: ["id", "user_email", "endpoint", "p256dh", "auth", "created_at"]
+  push_subscriptions: ["id", "user_email", "endpoint", "p256dh", "auth", "created_at"],
+  focus_sessions: [
+    "id", "user_email", "task_id", "task_title", "planned_minutes",
+    "started_at", "ended_at", "seconds"
+  ]
 };
 
 // Mã lỗi Postgres cho "thiếu bảng" và "thiếu cột".

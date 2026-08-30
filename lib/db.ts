@@ -352,6 +352,84 @@ export async function deletePushSubscription(endpoint: string) {
   await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
 }
 
+// --- Phiên tập trung (deep work) --------------------------------------------
+
+export type FocusSession = {
+  id: string;
+  user_email: string;
+  task_id: string | null;
+  task_title: string;
+  planned_minutes: number;
+  started_at: string;
+  ended_at: string | null;
+  seconds: number | null;
+};
+
+export async function getTaskById(id: string, userEmail: string) {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<Task>`
+      SELECT * FROM tasks WHERE id = ${id} AND user_email = ${userEmail}
+    `;
+    return rows[0] ?? null;
+  });
+}
+
+export async function startFocusSession(
+  userEmail: string,
+  taskId: string,
+  taskTitle: string,
+  phut: number
+) {
+  return chayVaTuSua(async () => {
+    // Đóng phiên cũ còn treo (bắt đầu rồi tắt app giữa chừng). Thời lượng ghi
+    // nhận bị chặn trên bằng số phút dự kiến, để một phiên bỏ quên qua đêm
+    // không biến thành 8 tiếng tập trung ảo trong thống kê.
+    await sql`
+      UPDATE focus_sessions
+      SET ended_at = LEAST(now(), started_at + planned_minutes * interval '1 minute'),
+          seconds = EXTRACT(EPOCH FROM (
+            LEAST(now(), started_at + planned_minutes * interval '1 minute') - started_at
+          ))::int
+      WHERE user_email = ${userEmail} AND ended_at IS NULL
+    `;
+    const { rows } = await sql<FocusSession>`
+      INSERT INTO focus_sessions (user_email, task_id, task_title, planned_minutes)
+      VALUES (${userEmail}, ${taskId}, ${taskTitle}, ${phut})
+      RETURNING *
+    `;
+    return rows[0];
+  });
+}
+
+export async function endFocusSession(id: string, userEmail: string) {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<FocusSession>`
+      UPDATE focus_sessions
+      SET ended_at = now(),
+          seconds = LEAST(EXTRACT(EPOCH FROM (now() - started_at))::int, planned_minutes * 60)
+      WHERE id = ${id} AND user_email = ${userEmail} AND ended_at IS NULL
+      RETURNING *
+    `;
+    return rows[0] ?? null;
+  });
+}
+
+export async function focusHomNay(userEmail: string) {
+  return chayVaTuSua(async () => {
+    // Tính "hôm nay" theo giờ Việt Nam bằng phép cộng 7 tiếng thay vì tên múi
+    // giờ Asia/Ho_Chi_Minh: VN không có giờ mùa hè nên +7 luôn đúng, và không
+    // phụ thuộc dữ liệu múi giờ có sẵn trên máy chủ database hay không.
+    const { rows } = await sql<{ giay: number; phien: number }>`
+      SELECT COALESCE(SUM(seconds), 0)::int AS giay, COUNT(*)::int AS phien
+      FROM focus_sessions
+      WHERE user_email = ${userEmail}
+        AND ended_at IS NOT NULL
+        AND (started_at + interval '7 hours')::date = (now() + interval '7 hours')::date
+    `;
+    return rows[0];
+  });
+}
+
 // Dùng cho /api/health. Đặt ở đây (thay vì gọi sql thẳng trong route) để đoạn
 // bắc cầu DATABASE_URL phía trên chắc chắn được chạy trước.
 // Dùng cho /api/health. Kiểm tra tới TỪNG CỘT chứ không chỉ sự tồn tại của bảng:
@@ -360,7 +438,8 @@ export async function checkSchema() {
   const { rows } = await sql<{ bang: string; cot: string }>`
     SELECT table_name AS bang, column_name AS cot
     FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name IN ('tasks', 'push_subscriptions')
+    WHERE table_schema = 'public'
+      AND table_name IN ('tasks', 'push_subscriptions', 'focus_sessions')
   `;
 
   const thucTe: Record<string, string[]> = {};

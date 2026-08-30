@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { normalizeDeadline } from "./db";
+import { TEN_TRO_LY } from "./branding";
 
 // KHÔNG ghim tên model theo phiên bản. Google liên tục ngừng cấp model cũ cho
 // API key mới: dự án này đã chết hai lần vì gemini-1.5-flash rồi gemini-2.0-flash.
@@ -196,7 +197,7 @@ function nowInVietnam() {
   return { iso: `${datePart}T${timePart}+07:00`, weekday };
 }
 
-const SYSTEM_PROMPT = `Bạn là trợ lý phân tích công việc cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam.
+const SYSTEM_PROMPT = `Bạn là "${TEN_TRO_LY}", trợ lý phân tích công việc cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam.
 Nhiệm vụ: đọc câu mô tả công việc (tiếng Việt, có thể là giọng nói được chuyển thành text, văn phong tự nhiên/không đầy đủ),
 và trả về JSON với các trường:
 
@@ -209,7 +210,7 @@ và trả về JSON với các trường:
   Bây giờ là {{WEEKDAY}}, {{TODAY}} (giờ Việt Nam, UTC+7). Mọi mốc thời gian phải tính theo múi giờ này.
 - "urgent": true/false, có tính khẩn cấp (deadline gần, hoặc ngôn từ thể hiện gấp) không
 - "important": true/false, có tính quan trọng (ảnh hưởng lớn, liên quan chiến lược/cấp trên/quyết định lớn) không
-- "reasoning": giải thích ngắn gọn (1-2 câu, tiếng Việt) vì sao suy luận như vậy
+- "reasoning": giải thích ngắn gọn (1-2 câu, tiếng Việt, xưng "em" và gọi người dùng là "anh") vì sao suy luận như vậy
 
 Chỉ trả JSON, không thêm chữ nào khác.`;
 
@@ -248,8 +249,9 @@ Hãy phân tích và trả về JSON gồm:
 - "risks": mảng 0-3 rủi ro/cảnh báo nếu có (vd quá tải, nhiều việc quan trọng dồn cùng ngày, việc quan trọng bị bỏ quên vì không khẩn cấp)
 
 Chỉ trả JSON, không thêm chữ nào khác. Văn phong tiếng Việt, ngắn gọn, không sáo rỗng.
-XƯNG HÔ: gọi người dùng là "anh", tuyệt đối không dùng "bạn". Toàn bộ giao diện đang xưng "anh",
-lệch xưng hô ở đây làm phần khuyến nghị đọc như của một hệ thống khác.
+XƯNG HÔ: bạn tên là "${TEN_TRO_LY}", xưng "em", gọi người dùng là "anh", tuyệt đối không dùng "bạn".
+Toàn bộ giao diện đang xưng "anh", lệch xưng hô ở đây làm phần khuyến nghị đọc như của một hệ thống khác.
+Giữ giọng chuyên môn thẳng thắn, không nũng nịu.
 
 Danh sách công việc:
 {{TASKS}}`;
@@ -259,6 +261,45 @@ export type TaskAnalysis = {
   recommendations: string[];
   risks: string[];
 };
+
+const BREAKDOWN_PROMPT = `Bạn là "${TEN_TRO_LY}", trợ lý công việc cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam.
+Nhiệm vụ: chia công việc dưới đây thành các bước hành động cụ thể, theo đúng thứ tự nên làm.
+
+Trả về JSON: {"steps": ["...", "..."]}
+- 3 đến 7 bước, mỗi bước dưới 90 ký tự, bắt đầu bằng động từ, đủ cụ thể để bắt tay làm ngay.
+- KHÔNG đánh số thứ tự trong nội dung bước, giao diện sẽ tự hiển thị.
+- Nếu ghi chú hiện có đã liệt kê sẵn một số bước, chỉ đề xuất các bước còn thiếu, đừng lặp lại.
+- Tiếng Việt.
+
+Công việc: {{TITLE}}
+Hạn chót: {{DEADLINE}}
+Ghi chú hiện có:
+{{NOTES}}
+
+Chỉ trả JSON, không thêm chữ nào khác.`;
+
+// Chia một việc thành danh sách bước. Trả về mảng chuỗi đã lọc sạch,
+// route chỉ việc đưa thẳng cho giao diện.
+export async function breakdownTask(t: {
+  title: string;
+  deadline: string | null;
+  notes: string | null;
+}): Promise<string[]> {
+  // Tiêu đề và ghi chú là dữ liệu người dùng nhập, dùng function replacer để
+  // các mẫu $&, $' trong đó không bị String.replace diễn giải (xem analyzeTasks).
+  const prompt = BREAKDOWN_PROMPT.replace("{{TITLE}}", () => t.title)
+    .replace("{{DEADLINE}}", t.deadline ? t.deadline.slice(0, 16) : "chưa có")
+    .replace("{{NOTES}}", () => (t.notes?.trim() ? t.notes.slice(0, 2000) : "(trống)"));
+
+  const parsed = await sinhJson(prompt);
+  const steps: unknown[] = Array.isArray(parsed?.steps) ? parsed.steps : [];
+  return steps
+    .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+    // Model hay tự đánh số dù đã dặn không, cắt tiền tố "1." / "2)" đi.
+    .map((s) => s.trim().replace(/^\d+[.)]\s*/, "").slice(0, 160))
+    .filter(Boolean)
+    .slice(0, 10);
+}
 
 export async function analyzeTasks(tasks: unknown[]): Promise<TaskAnalysis> {
   const { iso } = nowInVietnam();

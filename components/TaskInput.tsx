@@ -288,6 +288,9 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
         onChange={(e) => setText(e.target.value)}
         placeholder="Nói hoặc gõ việc cần làm... vd: Gửi báo cáo định biên cho anh Nam trước thứ 6 tuần này"
         rows={3}
+        // Khung nhập nay mở qua nút Bé iu: mở ra là gõ được luôn, không bắt
+        // bấm thêm một lần vào ô
+        autoFocus
         style={{
           width: "100%",
           resize: "vertical",
