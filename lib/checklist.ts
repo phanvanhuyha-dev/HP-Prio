@@ -48,3 +48,35 @@ export function themBuocVaoGhiChu(ghiChuCu: string | null | undefined, cacBuoc: 
   const cu = ghiChuCu?.trim();
   return cu ? `${cu}\n\n${checklist}` : checklist;
 }
+
+// Sửa nội dung bước ở một dòng. Nội dung mới rỗng nghĩa là xóa bước đó,
+// khớp với thói quen "xóa sạch chữ rồi bấm ra ngoài".
+export function suaBuoc(text: string, viTriDong: number, noiDungMoi: string): string {
+  const dongs = text.split("\n");
+  const m = dongs[viTriDong]?.match(DONG_BUOC);
+  if (!m) return text;
+  const nd = noiDungMoi.trim();
+  if (!nd) {
+    dongs.splice(viTriDong, 1);
+    return dongs.join("\n");
+  }
+  dongs[viTriDong] = `${m[1]}- [${m[2]}] ${nd}`;
+  return dongs.join("\n");
+}
+
+// Xóa hẳn một bước. Chỉ xóa dòng đúng là bước, không đụng dòng văn bản thường.
+export function xoaBuoc(text: string, viTriDong: number): string {
+  const dongs = text.split("\n");
+  if (!dongs[viTriDong]?.match(DONG_BUOC)) return text;
+  dongs.splice(viTriDong, 1);
+  return dongs.join("\n");
+}
+
+// Thêm một bước mới vào cuối ghi chú.
+export function themMotBuoc(text: string | null | undefined, noiDung: string): string {
+  const nd = noiDung.trim();
+  if (!nd) return text ?? "";
+  const dong = `- [ ] ${nd}`;
+  if (!text?.trim()) return dong;
+  return text.replace(/\s+$/, "") + "\n" + dong;
+}

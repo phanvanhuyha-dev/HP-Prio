@@ -268,7 +268,7 @@ function TaskRow({
                   overflowY: "auto"
                 }}
               >
-                <NotesView text={task.notes} onDoi={(moi) => onReclassify(task.id, { notes: moi })} />
+                <NotesView text={task.notes} onDoi={(moi) => onReclassify(task.id, { notes: moi })} choSua />
               </div>
             )
           )}

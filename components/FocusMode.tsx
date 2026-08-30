@@ -50,7 +50,18 @@ function mmss(giay: number) {
   return `${Math.floor(g / 60)}:${String(g % 60).padStart(2, "0")}`;
 }
 
+// Ba mốc gợi ý cho nhanh; ô "khác" nhận 5-180 phút (đúng giới hạn API).
 const PRESET_PHUT = [15, 25, 50];
+const KHOA_PHUT = "hpprio-phut";
+
+function docPhutQuen(): number {
+  try {
+    const n = Number(localStorage.getItem(KHOA_PHUT));
+    return Number.isInteger(n) && n >= 5 && n <= 180 ? n : 25;
+  } catch {
+    return 25;
+  }
+}
 
 export default function FocusMode({
   task,
@@ -76,6 +87,15 @@ export default function FocusMode({
   // Chia bước ngay trong màn tập trung, cho việc chưa có bước nào
   const [dangChia, setDangChia] = useState(false);
   const [buocDeXuat, setBuocDeXuat] = useState<string[] | null>(null);
+  // Nhớ thời lượng dùng lần trước, và ô nhập số phút tùy chọn
+  const [phutQuen, setPhutQuen] = useState(25);
+  const [phutKhac, setPhutKhac] = useState("");
+  useEffect(() => {
+    const n = docPhutQuen();
+    setPhutQuen(n);
+    // Lần trước dùng một mốc ngoài preset thì điền sẵn vào ô "khác"
+    if (!PRESET_PHUT.includes(n)) setPhutKhac(String(n));
+  }, []);
   const audioRef = useRef<AudioContext | null>(null);
   const wakeLockRef = useRef<any>(null);
   const daBaoRef = useRef(false);
@@ -165,8 +185,16 @@ export default function FocusMode({
 
   async function batDau(phut: number) {
     if (dangGoiRef.current) return;
+    if (!Number.isInteger(phut) || phut < 5 || phut > 180) {
+      setError("Thời lượng phải từ 5 đến 180 phút.");
+      return;
+    }
     dangGoiRef.current = true;
     setError(null);
+    setPhutQuen(phut);
+    try {
+      localStorage.setItem(KHOA_PHUT, String(phut));
+    } catch {}
     try {
       const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
       if (AC && !audioRef.current) audioRef.current = new AC();
@@ -317,7 +345,7 @@ export default function FocusMode({
                   {buoc.xong}/{buoc.tong} bước
                 </div>
               )}
-              <NotesView text={task.notes} onDoi={(moi) => onDoiGhiChu(task.id, moi)} />
+              <NotesView text={task.notes} onDoi={(moi) => onDoiGhiChu(task.id, moi)} choSua />
             </div>
           ) : buocDeXuat === null ? (
             <div style={{ marginTop: 12 }}>
@@ -411,17 +439,18 @@ export default function FocusMode({
             <p className="mono" style={{ fontSize: 11, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 10px" }}>
               Thời lượng
             </p>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch" }}>
+              {/* Mốc dùng lần trước được tô nổi, bấm phát là chạy lại đúng nhịp quen */}
               {PRESET_PHUT.map((p) => (
                 <button
                   key={p}
                   onClick={() => batDau(p)}
                   style={{
-                    background: p === 25 ? "var(--amber)" : "transparent",
-                    color: p === 25 ? "var(--navy)" : "var(--cream)",
-                    border: `1px solid ${p === 25 ? "var(--amber)" : "var(--line)"}`,
+                    background: p === phutQuen ? "var(--amber)" : "transparent",
+                    color: p === phutQuen ? "var(--navy)" : "var(--cream)",
+                    border: `1px solid ${p === phutQuen ? "var(--amber)" : "var(--line)"}`,
                     borderRadius: 12,
-                    padding: "14px 22px",
+                    padding: "14px 20px",
                     fontSize: 16,
                     fontWeight: 700,
                     minHeight: 52
@@ -430,6 +459,60 @@ export default function FocusMode({
                   {p} phút
                 </button>
               ))}
+
+              {/* Số phút tùy chọn, 5-180 theo đúng giới hạn API */}
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  border: `1px solid ${!PRESET_PHUT.includes(phutQuen) && phutKhac ? "var(--amber)" : "var(--line)"}`,
+                  borderRadius: 12,
+                  padding: "0 6px 0 12px",
+                  minHeight: 52
+                }}
+              >
+                <input
+                  value={phutKhac}
+                  onChange={(e) => setPhutKhac(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && phutKhac) batDau(Number(phutKhac));
+                  }}
+                  inputMode="numeric"
+                  placeholder="Khác"
+                  aria-label="Số phút tùy chọn, từ 5 đến 180"
+                  style={{
+                    width: 52,
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: "var(--cream)",
+                    fontSize: 16,
+                    fontWeight: 700,
+                    fontFamily: "var(--font-body)",
+                    textAlign: "center"
+                  }}
+                />
+                <span style={{ fontSize: 13, color: "var(--slate)" }}>phút</span>
+                <button
+                  onClick={() => phutKhac && batDau(Number(phutKhac))}
+                  disabled={!phutKhac}
+                  aria-label="Bắt đầu với số phút tùy chọn"
+                  style={{
+                    background: phutKhac ? "var(--amber)" : "var(--field)",
+                    color: phutKhac ? "var(--navy)" : "var(--slate)",
+                    border: "none",
+                    borderRadius: 9,
+                    padding: "0 14px",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    minHeight: 40,
+                    marginLeft: 2
+                  }}
+                >
+                  ▶
+                </button>
+              </div>
             </div>
             <p style={{ fontSize: 12, color: "var(--slate)", marginTop: 14, lineHeight: 1.5 }}>
               Màn hình được giữ sáng trong phiên. Nếu anh khóa máy, đồng hồ vẫn tính
