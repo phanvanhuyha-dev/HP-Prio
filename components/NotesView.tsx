@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Linkify from "./Linkify";
 import { phanTichGhiChu, daoBuoc, suaBuoc, xoaBuoc, themMotBuoc } from "@/lib/checklist";
+import { rung } from "@/lib/client-api";
 
 // Hiển thị ghi chú: dòng "- [ ]" thành ô đánh dấu bấm được, các dòng còn lại
 // là văn bản thuần với đường link bấm được. Vẫn đi qua Linkify nên không có
@@ -52,7 +53,10 @@ export default function NotesView({
               checked={d.xong}
               disabled={!onDoi}
               aria-label={`Đánh dấu bước: ${d.noiDung}`}
-              onChange={() => onDoi?.(daoBuoc(text, i))}
+              onChange={() => {
+                rung(8);
+                onDoi?.(daoBuoc(text, i));
+              }}
               style={{ marginTop: suaDuoc ? 8 : 4, width: 16, height: 16, accentColor: "var(--teal)", flexShrink: 0, cursor: onDoi ? "pointer" : "default" }}
             />
 

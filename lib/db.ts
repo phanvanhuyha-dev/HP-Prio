@@ -25,6 +25,7 @@ export type Task = {
   // Ghi chú chi tiết: đường link, tài liệu, các bước cần làm
   notes: string | null;
   deleted_at: string | null;
+  done_at: string | null;
   ai_urgent: boolean | null;
   ai_important: boolean | null;
   ai_category: string | null;
@@ -172,8 +173,17 @@ export async function createTask(data: {
 
 export async function updateTaskStatus(id: string, userEmail: string, status: TaskStatus) {
   return chayVaTuSua(async () => {
+    // done_at chỉ ghi khi chuyển sang done, xóa khi mở lại; các trạng thái khác
+    // giữ nguyên để lịch sử hoàn thành không mất khi việc bị đưa vào thùng rác.
     const { rows } = await sql<Task>`
-      UPDATE tasks SET status = ${status}, updated_at = now()
+      UPDATE tasks SET
+        status = ${status},
+        done_at = CASE
+          WHEN ${status} = 'done' THEN now()
+          WHEN ${status} = 'open' THEN NULL
+          ELSE done_at
+        END,
+        updated_at = now()
       WHERE id = ${id} AND user_email = ${userEmail}
       RETURNING *
     `;
@@ -350,6 +360,98 @@ export async function getPushSubscriptions(userEmail: string) {
 
 export async function deletePushSubscription(endpoint: string) {
   await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
+}
+
+// Người dùng nào đang có đăng ký push: cron dùng để biết gửi điểm tin sáng cho ai.
+export async function listPushUsers() {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<{ user_email: string }>`
+      SELECT DISTINCT user_email FROM push_subscriptions
+    `;
+    return rows.map((r) => r.user_email);
+  });
+}
+
+// --- Điểm tin sáng ----------------------------------------------------------
+
+// Ngày hôm nay theo giờ Việt Nam, dạng YYYY-MM-DD. Cộng 7 tiếng thay vì dùng
+// tên múi giờ: VN không có giờ mùa hè nên +7 luôn đúng.
+export function ngayVNHomNay(): string {
+  return new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+}
+
+// --- Thống kê tuần (tab Nhìn lại) ------------------------------------------
+
+export type ThongKeTuan = {
+  focusNgay: { ngay: string; giay: number; phien: number }[];
+  xong7: number;
+  tao7: number;
+  quaHan: number;
+  dangMo: number;
+  vuaXong: string[];
+};
+
+export async function thongKeTuan(userEmail: string): Promise<ThongKeTuan> {
+  return chayVaTuSua(async () => {
+    // Gộp theo NGÀY giờ Việt Nam bằng phép cộng 7 tiếng (VN không có giờ mùa hè)
+    const [focus, dem, vuaXong] = await Promise.all([
+      sql<{ ngay: string; giay: number; phien: number }>`
+        SELECT (started_at + interval '7 hours')::date::text AS ngay,
+               COALESCE(SUM(seconds), 0)::int AS giay,
+               COUNT(*)::int AS phien
+        FROM focus_sessions
+        WHERE user_email = ${userEmail}
+          AND ended_at IS NOT NULL
+          AND started_at > now() - interval '7 days'
+        GROUP BY 1
+      `,
+      sql<{ xong7: number; tao7: number; qua_han: number; dang_mo: number }>`
+        SELECT
+          COUNT(*) FILTER (WHERE status = 'done' AND done_at > now() - interval '7 days')::int AS xong7,
+          COUNT(*) FILTER (WHERE created_at > now() - interval '7 days' AND status <> 'deleted')::int AS tao7,
+          COUNT(*) FILTER (WHERE status = 'open' AND deadline IS NOT NULL AND deadline < now())::int AS qua_han,
+          COUNT(*) FILTER (WHERE status = 'open')::int AS dang_mo
+        FROM tasks
+        WHERE user_email = ${userEmail}
+      `,
+      sql<{ title: string }>`
+        SELECT title FROM tasks
+        WHERE user_email = ${userEmail} AND status = 'done'
+          AND done_at > now() - interval '7 days'
+        ORDER BY done_at DESC
+        LIMIT 8
+      `
+    ]);
+
+    return {
+      focusNgay: focus.rows,
+      xong7: dem.rows[0]?.xong7 ?? 0,
+      tao7: dem.rows[0]?.tao7 ?? 0,
+      quaHan: dem.rows[0]?.qua_han ?? 0,
+      dangMo: dem.rows[0]?.dang_mo ?? 0,
+      vuaXong: vuaXong.rows.map((r) => r.title)
+    };
+  });
+}
+
+export async function getBrief(userEmail: string, ngay: string) {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<{ noi_dung: string }>`
+      SELECT noi_dung FROM daily_briefs
+      WHERE user_email = ${userEmail} AND ngay = ${ngay}
+    `;
+    return rows[0]?.noi_dung ?? null;
+  });
+}
+
+export async function saveBrief(userEmail: string, ngay: string, noiDung: string) {
+  return chayVaTuSua(async () => {
+    await sql`
+      INSERT INTO daily_briefs (user_email, ngay, noi_dung)
+      VALUES (${userEmail}, ${ngay}, ${noiDung})
+      ON CONFLICT (user_email, ngay) DO UPDATE SET noi_dung = EXCLUDED.noi_dung
+    `;
+  });
 }
 
 // --- Phiên tập trung (deep work) --------------------------------------------

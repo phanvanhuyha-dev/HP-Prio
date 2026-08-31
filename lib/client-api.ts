@@ -42,6 +42,13 @@ export function loiThanThien(e: any): string {
   return e?.message || "Có lỗi xảy ra, anh thử lại.";
 }
 
+// Rung nhẹ khi hoàn thành một thao tác (điện thoại hỗ trợ thì rung, không thì thôi).
+export function rung(ms = 12) {
+  try {
+    (navigator as any).vibrate?.(ms);
+  } catch {}
+}
+
 // Định dạng ngày giờ kiểu Việt Nam. Ô <input type="datetime-local"> hiển thị
 // theo ngôn ngữ của trình duyệt (ra "01-Aug-2026 09:00 AM") và không ép được,
 // nên hiện thêm một dòng phụ bằng tiếng Việt ngay dưới ô.

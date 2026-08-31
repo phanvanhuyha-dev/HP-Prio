@@ -66,12 +66,18 @@ function docPhutQuen(): number {
 export default function FocusMode({
   task,
   phienCu,
+  thuNho,
+  onDoiThuNho,
   onClose,
   onXongViec,
   onDoiGhiChu
 }: {
   task: Task;
   phienCu: PhienTapTrung | null;
+  // Thu nhỏ: component VẪN được mount để đồng hồ, chuông và wake lock chạy
+  // tiếp, chỉ phần giao diện ẩn đi (Dashboard hiện thanh mini thay thế).
+  thuNho: boolean;
+  onDoiThuNho: (v: boolean) => void;
   onClose: () => void;
   onXongViec: (id: string) => void;
   onDoiGhiChu: (id: string, notes: string) => void;
@@ -248,6 +254,8 @@ export default function FocusMode({
       setPhutVuaXong(p.phut);
       setHetGio(true);
       bao();
+      // Đang thu nhỏ mà hết giờ thì mở lại màn hình để thấy phần chúc mừng
+      onDoiThuNho(false);
     }
     try {
       await fetch(`/api/focus/${p.sessionId}`, { method: "PATCH" });
@@ -282,6 +290,10 @@ export default function FocusMode({
   const dangChay = phien !== null;
   const phanTram = phien ? Math.min(100, ((phien.phut * 60 - conLai) / (phien.phut * 60)) * 100) : 0;
 
+  // Sau khi mọi hook đã chạy: thu nhỏ thì không vẽ gì, nhưng đồng hồ và chuông
+  // vẫn sống vì component còn mount.
+  if (thuNho) return null;
+
   return (
     <div className="focus-lop" role="dialog" aria-modal="true" aria-label="Chế độ tập trung">
       <div style={{ maxWidth: 560, margin: "0 auto" }}>
@@ -289,14 +301,29 @@ export default function FocusMode({
           <span className="mono" style={{ fontSize: 11, color: "var(--slate)", letterSpacing: "0.16em", textTransform: "uppercase" }}>
             Tập trung sâu
           </span>
-          <button
-            onClick={() => (dangChay ? ketThuc(false) : onClose())}
-            className="tap"
-            aria-label={dangChay ? "Kết thúc sớm và đóng" : "Đóng"}
-            style={{ background: "none", border: "none", color: "var(--slate)", fontSize: 18, margin: -10 }}
-          >
-            ✕
-          </button>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            {/* Thu nhỏ: xem danh sách việc mà KHÔNG phải kết thúc phiên.
+                Trước đây nút ✕ là đường ra duy nhất và nó chấm dứt luôn phiên. */}
+            {dangChay && (
+              <button
+                onClick={() => onDoiThuNho(true)}
+                className="tap"
+                aria-label="Thu nhỏ, phiên vẫn chạy"
+                title="Thu nhỏ, phiên vẫn chạy"
+                style={{ background: "none", border: "none", color: "var(--slate)", fontSize: 17, margin: "-10px 0" }}
+              >
+                ⌄
+              </button>
+            )}
+            <button
+              onClick={() => (dangChay ? ketThuc(false) : onClose())}
+              className="tap"
+              aria-label={dangChay ? "Kết thúc sớm và đóng" : "Đóng"}
+              style={{ background: "none", border: "none", color: "var(--slate)", fontSize: 18, margin: "-10px -10px -10px 0" }}
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* ----- Đồng hồ ----- */}

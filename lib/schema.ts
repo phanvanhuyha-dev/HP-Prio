@@ -70,7 +70,25 @@ export const CAU_LENH_SCHEMA: string[] = [
      ended_at TIMESTAMPTZ,
      seconds INT
    )`,
-  `CREATE INDEX IF NOT EXISTS idx_focus_user_time ON focus_sessions (user_email, started_at)`
+  `CREATE INDEX IF NOT EXISTS idx_focus_user_time ON focus_sessions (user_email, started_at)`,
+
+  // Mốc hoàn thành riêng, phục vụ thống kê "xong trong tuần". updated_at không
+  // dùng được vì nó đổi mỗi lần sửa lại việc cũ.
+  `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS done_at TIMESTAMPTZ`,
+  // Lấp dữ liệu cho việc đã xong từ trước: xấp xỉ bằng updated_at.
+  // WHERE done_at IS NULL nên chạy lại bao nhiêu lần cũng chỉ tác dụng một lần.
+  `UPDATE tasks SET done_at = updated_at WHERE status = 'done' AND done_at IS NULL`,
+
+  // Điểm tin sáng do Bé iu viết, mỗi ngày một bản. Lưu lại để cron gửi push
+  // xong thì mở app vẫn đọc được, và ai gọi trước thì người sau dùng bản cache
+  // thay vì đốt thêm một lượt AI.
+  `CREATE TABLE IF NOT EXISTS daily_briefs (
+     user_email TEXT NOT NULL,
+     ngay DATE NOT NULL,
+     noi_dung TEXT NOT NULL,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     PRIMARY KEY (user_email, ngay)
+   )`
 ];
 
 // Các cột mà code đang dựa vào. /api/health đối chiếu danh sách này với cấu trúc
@@ -78,7 +96,7 @@ export const CAU_LENH_SCHEMA: string[] = [
 export const COT_BAT_BUOC: Record<string, string[]> = {
   tasks: [
     "id", "user_email", "raw_input", "title", "category", "deadline", "status",
-    "notes", "deleted_at", "ai_urgent", "ai_important", "ai_category", "ai_deadline",
+    "notes", "deleted_at", "done_at", "ai_urgent", "ai_important", "ai_category", "ai_deadline",
     "ai_reasoning", "user_urgent", "user_important", "reminder_sent_at",
     "created_at", "updated_at"
   ],
@@ -86,7 +104,8 @@ export const COT_BAT_BUOC: Record<string, string[]> = {
   focus_sessions: [
     "id", "user_email", "task_id", "task_title", "planned_minutes",
     "started_at", "ended_at", "seconds"
-  ]
+  ],
+  daily_briefs: ["user_email", "ngay", "noi_dung", "created_at"]
 };
 
 // Mã lỗi Postgres cho "thiếu bảng" và "thiếu cột".

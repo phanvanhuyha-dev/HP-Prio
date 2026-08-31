@@ -288,6 +288,84 @@ export async function breakdownTask(t: {
 }
 
 // ---------------------------------------------------------------------------
+// Điểm tin sáng: một đoạn ngắn Bé iu viết lúc 8h, tổng hợp việc đến hạn, quá
+// hạn và việc nằm im lâu ngày. Đây là tấm lưới chống quên chủ động của app.
+const BRIEF_PROMPT = `Bạn là "${TEN_TRO_LY}", trợ lý công việc riêng cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam. Xưng "em", gọi người dùng là "anh". Giọng chuyên môn thẳng thắn, không sáo rỗng, không nũng nịu.
+Hôm nay là {{WEEKDAY}}, {{TODAY}} (giờ Việt Nam).
+
+Dữ liệu công việc của anh:
+- Quá hạn: {{QUA_HAN}}
+- Đến hạn hôm nay: {{HOM_NAY}}
+- Khẩn cấp + quan trọng (làm ngay): {{LAM_NGAY}}
+- Nằm im quá 14 ngày không đụng tới (không có hạn): {{NAM_IM}}
+- Tổng việc đang mở: {{TONG}}
+
+Viết một ĐIỂM TIN SÁNG ngắn (3-5 câu, tối đa 600 ký tự) theo thứ tự: (1) việc quá hạn nếu có, nêu đích danh; (2) việc đến hạn hôm nay; (3) gợi ý nên bắt đầu với việc nào và vì sao, chỉ MỘT việc; (4) nếu có việc nằm im, nhắc đúng một câu hỏi anh còn cần nó không. Không liệt kê lại toàn bộ, chỉ nêu thứ đáng chú ý. Không mở đầu bằng "Chào anh" (giao diện đã chào rồi).
+
+Trả về JSON: {"brief":"..."}`;
+
+export async function briefDaily(duLieu: {
+  quaHan: string[];
+  homNay: string[];
+  lamNgay: string[];
+  namIm: string[];
+  tong: number;
+}): Promise<string> {
+  const { iso, weekday } = nowInVietnam();
+  const ke = (ds: string[]) => (ds.length ? ds.map((t) => `"${t}"`).join(", ") : "(không có)");
+  const prompt = BRIEF_PROMPT.replace("{{TODAY}}", iso.slice(0, 10))
+    .replace("{{WEEKDAY}}", weekday)
+    .replace("{{QUA_HAN}}", () => ke(duLieu.quaHan))
+    .replace("{{HOM_NAY}}", () => ke(duLieu.homNay))
+    .replace("{{LAM_NGAY}}", () => ke(duLieu.lamNgay))
+    .replace("{{NAM_IM}}", () => ke(duLieu.namIm))
+    .replace("{{TONG}}", String(duLieu.tong));
+
+  const parsed = await sinhJson(prompt);
+  const brief = typeof parsed?.brief === "string" ? parsed.brief.trim() : "";
+  if (!brief) throw new Error("Điểm tin trống");
+  return brief.slice(0, 1200);
+}
+
+// ---------------------------------------------------------------------------
+// Tóm tắt tuần: gọi theo yêu cầu từ tab Nhìn lại, không chạy nền.
+const TOM_TAT_TUAN_PROMPT = `Bạn là "${TEN_TRO_LY}", trợ lý công việc riêng cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam. Xưng "em", gọi người dùng là "anh". Giọng chuyên môn thẳng thắn, không sáo rỗng.
+
+Số liệu 7 ngày qua của anh:
+- Tổng thời gian tập trung: {{PHUT}} phút, {{PHIEN}} phiên
+- Việc hoàn thành: {{XONG}} (gồm: {{DS_XONG}})
+- Việc mới thêm: {{TAO}}
+- Đang quá hạn: {{QUA_HAN}}
+- Đang mở: {{DANG_MO}}
+
+Viết TÓM TẮT TUẦN 3-5 câu, tối đa 700 ký tự: (1) nhận định thẳng về nhịp làm việc tuần qua dựa trên số liệu, khen chê có căn cứ; (2) một điểm đáng chú ý (vd thêm nhiều hơn xong, hay quá hạn tăng); (3) MỘT gợi ý cụ thể cho tuần tới. Không lặp lại số liệu dạng liệt kê, hãy diễn giải.
+
+Trả về JSON: {"tomTat":"..."}`;
+
+export async function tomTatTuan(d: {
+  phut: number;
+  phien: number;
+  xong: number;
+  dsXong: string[];
+  tao: number;
+  quaHan: number;
+  dangMo: number;
+}): Promise<string> {
+  const prompt = TOM_TAT_TUAN_PROMPT.replace("{{PHUT}}", String(d.phut))
+    .replace("{{PHIEN}}", String(d.phien))
+    .replace("{{XONG}}", String(d.xong))
+    .replace("{{DS_XONG}}", () => (d.dsXong.length ? d.dsXong.map((t) => `"${t}"`).join(", ") : "không có"))
+    .replace("{{TAO}}", String(d.tao))
+    .replace("{{QUA_HAN}}", String(d.quaHan))
+    .replace("{{DANG_MO}}", String(d.dangMo));
+
+  const parsed = await sinhJson(prompt);
+  const kq = typeof parsed?.tomTat === "string" ? parsed.tomTat.trim() : "";
+  if (!kq) throw new Error("Tóm tắt trống");
+  return kq.slice(0, 1400);
+}
+
+// ---------------------------------------------------------------------------
 // Bộ định tuyến ý định của trợ lý: một câu người dùng nói có thể là thêm việc,
 // báo xong, sửa việc, hoặc một câu hỏi/nhờ phân tích. AI chỉ ĐỀ XUẤT hành động
 // kèm dữ liệu; việc đối chiếu taskId với danh sách thật nằm ở route, còn xác

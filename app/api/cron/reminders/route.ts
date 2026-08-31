@@ -6,9 +6,11 @@ import {
   getPushSubscriptions,
   deletePushSubscription,
   purgeOldDeleted,
+  listPushUsers,
   type StoredPushSubscription
 } from "@/lib/db";
 import { sendPush, isPushConfigured } from "@/lib/push";
+import { layHoacTaoBrief } from "@/lib/brief";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -106,12 +108,39 @@ export async function GET(req: Request) {
       }
     }
 
+    // Điểm tin sáng: một push tổng hợp cho mỗi người dùng đã bật thông báo.
+    // Chạy SAU phần nhắc từng việc và không được làm hỏng phần đó nếu AI lỗi.
+    let briefsSent = 0;
+    try {
+      for (const email of await listPushUsers()) {
+        const brief = await layHoacTaoBrief(email);
+        if (!brief) continue;
+        const subs = await getPushSubscriptions(email);
+        for (const sub of subs) {
+          const kq = await sendPush(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            {
+              title: "☀️ Điểm tin sáng",
+              // Push có giới hạn độ dài hiển thị; bản đầy đủ đọc trong app
+              body: brief.length > 220 ? brief.slice(0, 217) + "…" : brief,
+              url: "/"
+            }
+          );
+          if (kq === "sent") briefsSent++;
+          else if (kq === "expired") await deletePushSubscription(sub.endpoint);
+        }
+      }
+    } catch (err) {
+      console.error("Daily brief error:", err);
+    }
+
     return NextResponse.json({
       ok: true,
       tasksDue: dueTasks.length,
       remindersSent: notified,
       expiredSubscriptionsRemoved: pruned,
-      deletedTasksPurged: daDon
+      deletedTasksPurged: daDon,
+      briefsSent
     });
   } catch (err) {
     console.error("Cron reminders error:", err);

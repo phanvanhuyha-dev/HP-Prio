@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import NotesView from "./NotesView";
 import { demBuoc, themBuocVaoGhiChu } from "@/lib/checklist";
-import { docLoi, loiThanThien } from "@/lib/client-api";
+import { docLoi, loiThanThien, rung } from "@/lib/client-api";
 import { TEN_TRO_LY } from "@/lib/branding";
 
 export type Task = {
@@ -28,8 +28,10 @@ export function nhomCua(t: Pick<Task, "user_urgent" | "user_important">) {
     return { key: "do", label: "Làm ngay", color: "var(--coral)", thuTu: 0 };
   if (!t.user_urgent && t.user_important)
     return { key: "schedule", label: "Lên lịch", color: "var(--teal)", thuTu: 1 };
+  // Không còn "Giao bớt": app một người dùng, không có ai để giao. Khẩn cấp
+  // nhưng không quan trọng nghĩa là làm gọn dưới 15 phút hoặc mạnh dạn bỏ.
   if (t.user_urgent)
-    return { key: "delegate", label: "Giao bớt", color: "var(--amber)", thuTu: 2 };
+    return { key: "delegate", label: "Xử lý nhanh", color: "var(--amber)", thuTu: 2 };
   return { key: "drop", label: "Cân nhắc bỏ", color: "var(--slate)", thuTu: 3 };
 }
 
@@ -57,6 +59,7 @@ export default function TaskList({
     const gio = Date.now();
     if (gio - lanBamCuoi.current < KHOANG_CHAN_MS) return;
     lanBamCuoi.current = gio;
+    rung();
     onDone(id);
   }
 

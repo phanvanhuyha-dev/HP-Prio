@@ -127,23 +127,78 @@ select option:hover {
   overflow-wrap: anywhere;
 }
 
-/* Toast hoàn tác luôn nằm trong tầm mắt, kể cả khi đang cuộn giữa danh sách.
-   Đẩy lên 84px để không đè lên nút nổi gọi trợ lý ở góc dưới. */
-.toast-hoan-tac {
+/* Khu thông báo tạm thời: MỘT chỗ cố định phía đáy cho cả "Đã lưu" lẫn
+   "Hoàn tác", xếp chồng khi trùng lúc. Nằm trên thanh điều hướng và nút nổi. */
+.toast-khu {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(140px + env(safe-area-inset-bottom, 0px));
   z-index: 50;
   width: min(560px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast-khu > div {
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
 }
 
-/* Nút nổi gọi trợ lý, cố định góc dưới phải */
+/* Thanh điều hướng đáy: Hôm nay / Nhìn lại */
+.nav-day {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
+  height: calc(58px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  display: flex;
+  background: var(--navy-2);
+  border-top: 1px solid var(--line);
+}
+
+.nav-day button {
+  flex: 1;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--slate);
+}
+
+.nav-day button[aria-current="page"] {
+  color: var(--amber);
+}
+
+/* Thanh mini của phiên tập trung đang thu nhỏ, nằm ngay trên thanh điều hướng */
+.mini-focus {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(66px + env(safe-area-inset-bottom, 0px));
+  z-index: 46;
+  width: min(560px, calc(100vw - 32px));
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  background: var(--navy-2);
+  border: 1px solid var(--amber);
+  border-radius: 12px;
+  color: var(--cream);
+  font-size: 13.5px;
+  font-family: var(--font-body);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Nút nổi gọi trợ lý, cố định góc dưới phải, phía trên thanh điều hướng */
 .fab-beiu {
   position: fixed;
   right: calc(16px + env(safe-area-inset-right, 0px));
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(74px + env(safe-area-inset-bottom, 0px));
   z-index: 40;
   background: var(--amber);
   color: var(--navy);
@@ -186,6 +241,22 @@ select option:hover {
 @keyframes sheet-len {
   from { transform: translateY(28px); opacity: 0.5; }
   to { transform: none; opacity: 1; }
+}
+
+/* Trên màn rộng, khung trượt từ đáy là ngôn ngữ mobile trông lạc chỗ:
+   chuyển thành hộp thoại giữa màn hình. */
+@media (min-width: 768px) {
+  .sheet-noi-dung {
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    top: 8vh;
+    transform: translateX(-50%);
+    width: min(640px, 92vw);
+    border-radius: 18px;
+    border: 1px solid var(--line);
+    max-height: 84vh;
+  }
 }
 
 /* Màn tập trung phủ toàn màn hình */

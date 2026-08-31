@@ -8,8 +8,9 @@ import TaskList, { type Task } from "./TaskList";
 import PushSetup from "./PushSetup";
 import TrashPanel from "./TrashPanel";
 import DonePanel from "./DonePanel";
-import ProfilePanel from "./ProfilePanel";
 import FocusMode, { docPhienDangDo, xoaPhienDangDo, type PhienTapTrung } from "./FocusMode";
+import MiniFocusBar from "./MiniFocusBar";
+import NhinLai from "./NhinLai";
 
 const THU_VN = ["CHỦ NHẬT", "THỨ HAI", "THỨ BA", "THỨ TƯ", "THỨ NĂM", "THỨ SÁU", "THỨ BẢY"];
 
@@ -30,6 +31,13 @@ export default function Dashboard({ userName, email }: { userName: string; email
 
   // Khung nhập việc nay nằm sau nút nổi "Bé iu", không chiếm màn hình chính nữa.
   const [moBeIu, setMoBeIu] = useState(false);
+
+  // Hai tab: Hôm nay (làm việc) và Nhìn lại (thống kê + hồ sơ)
+  const [tab, setTab] = useState<"homnay" | "nhinlai">("homnay");
+
+  // Phiên tập trung thu nhỏ: FocusMode vẫn mount (đồng hồ chạy tiếp), chỉ ẩn
+  // giao diện và hiện thanh mini ở đáy.
+  const [focusThuNho, setFocusThuNho] = useState(false);
 
   // Ngày giờ, tên gọi tùy chỉnh và giao diện sáng/tối: đọc sau khi mount để
   // không lệch giữa bản render trên máy chủ và trên máy người dùng.
@@ -88,14 +96,15 @@ export default function Dashboard({ userName, email }: { userName: string; email
   }, [loading, tasks]);
 
   // Khóa cuộn trang nền khi có lớp phủ, không thì trên iOS nền vẫn trượt theo.
+  // Phiên tập trung thu nhỏ thì KHÔNG khóa: người dùng đang cần cuộn danh sách.
   useEffect(() => {
-    if (!moBeIu && !focusId) return;
+    if (!moBeIu && !(focusId && !focusThuNho)) return;
     const cu = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = cu;
     };
-  }, [moBeIu, focusId]);
+  }, [moBeIu, focusId, focusThuNho]);
 
   useEffect(() => {
     const dong = (e: KeyboardEvent) => {
@@ -131,6 +140,33 @@ export default function Dashboard({ userName, email }: { userName: string; email
     });
   const dangLoc = tuKhoa.trim() !== "" || nhan !== "tat-ca";
   const soLamNgay = tasks.filter((t) => t.user_urgent && t.user_important).length;
+  const soQuaHan = tasks.filter((t) => t.deadline && new Date(t.deadline) < new Date()).length;
+
+  // Quá hạn được GHIM riêng lên đầu, tách khỏi danh sách thường. Ngày đỏ lẫn
+  // trong danh sách là không đủ với nỗi lo "sợ quên việc".
+  const dsQuaHan = dsHienThi.filter((t) => t.deadline && new Date(t.deadline) < new Date());
+  const dsBinhThuong = dsHienThi.filter((t) => !(t.deadline && new Date(t.deadline) < new Date()));
+
+  // Điểm tin sáng: tải một lần mỗi phiên, ẩn được cho tới hết ngày
+  const [brief, setBrief] = useState<string | null>(null);
+  const [anBrief, setAnBrief] = useState(true);
+  useEffect(() => {
+    const homNay = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+    try {
+      if (localStorage.getItem("hpprio-brief-an") === homNay) return; // đã đóng hôm nay
+    } catch {}
+    setAnBrief(false);
+    fetch("/api/brief")
+      .then(async (r) => (r.ok ? setBrief((await r.json()).brief ?? null) : null))
+      .catch(() => {});
+  }, []);
+
+  function dongBrief() {
+    setAnBrief(true);
+    try {
+      localStorage.setItem("hpprio-brief-an", new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10));
+    } catch {}
+  }
 
   // Tra theo id để màn tập trung luôn thấy bản task mới nhất. Việc biến mất
   // khỏi danh sách (vừa đánh dấu xong, vừa xóa) thì màn tập trung tự đóng.
@@ -289,7 +325,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
   return (
     // Danh sách dọc đọc thoải mái nhất trong một cột hẹp; 1040px là di sản của
     // bố cục ma trận 2x2 cũ, nay thu về 680px.
-    <main style={{ maxWidth: 680, margin: "0 auto", padding: "24px 16px 80px" }}>
+    <main style={{ maxWidth: 680, margin: "0 auto", padding: "24px 16px 150px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 22 }}>
         <div style={{ minWidth: 0 }}>
           {/* Dòng ngày kiểu "THỨ HAI, 31/08/2026" theo mẫu tham chiếu */}
@@ -300,12 +336,14 @@ export default function Dashboard({ userName, email }: { userName: string; email
             Chào {tenGoi || userName.split(" ")[0] || userName}.
           </h1>
           {!loading && (
-            <p style={{ fontSize: 14, color: "var(--slate)", margin: "4px 0 0" }}>
-              {soLamNgay > 0
-                ? `Anh có ${soLamNgay} việc cần làm ngay hôm nay.`
-                : tasks.length > 0
-                  ? "Không có việc nào khẩn cấp, anh chủ động được lịch hôm nay."
-                  : "Hôm nay chưa có việc nào."}
+            <p style={{ fontSize: 14, color: soQuaHan > 0 ? "var(--coral)" : "var(--slate)", margin: "4px 0 0" }}>
+              {soQuaHan > 0
+                ? `Anh có ${soQuaHan} việc quá hạn${soLamNgay > 0 ? ` và ${soLamNgay} việc cần làm ngay` : ""}.`
+                : soLamNgay > 0
+                  ? `Anh có ${soLamNgay} việc cần làm ngay hôm nay.`
+                  : tasks.length > 0
+                    ? "Không có việc nào khẩn cấp, anh chủ động được lịch hôm nay."
+                    : "Hôm nay chưa có việc nào."}
             </p>
           )}
         </div>
@@ -332,70 +370,101 @@ export default function Dashboard({ userName, email }: { userName: string; email
             className="tap"
             aria-label="Đăng xuất"
             title="Đăng xuất"
-            style={{ background: "none", border: "none", fontSize: 16, color: "var(--slate)" }}
+            style={{ background: "none", border: "none", fontSize: 12.5, color: "var(--slate)", padding: "0 4px" }}
           >
-            ⎋
+            Thoát
           </button>
         </div>
       </header>
 
-      {/* Trước đây lưu xong không có xác nhận nào, người dùng phải tự dò trong
-          ma trận xem việc đã vào chưa. */}
-      {daLuu && (
-        <p
-          role="status"
+      {tab === "homnay" && (
+      <>
+      {/* Điểm tin sáng do Bé iu viết, mỗi ngày một bản, đóng là ẩn tới hết ngày */}
+      {brief && !anBrief && (
+        <div
           style={{
-            color: "var(--teal)",
-            fontSize: 13,
-            marginTop: 12,
-            marginBottom: 0,
-            background: "rgba(90, 163, 148, 0.12)",
-            border: "1px solid var(--teal)",
-            borderRadius: 8,
-            padding: "8px 12px"
+            background: "var(--navy-2)",
+            border: "1px solid var(--line)",
+            borderLeft: "3px solid var(--amber)",
+            borderRadius: 12,
+            padding: "12px 14px",
+            marginBottom: 16
           }}
         >
-          ✓ {daLuu}
-        </p>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span className="mono" style={{ fontSize: 10.5, color: "var(--amber)", textTransform: "uppercase", letterSpacing: "0.12em" }}>
+              ☀️ Điểm tin sáng
+            </span>
+            <button
+              onClick={dongBrief}
+              aria-label="Đóng điểm tin sáng"
+              className="tap"
+              style={{ background: "none", border: "none", color: "var(--slate)", fontSize: 13, margin: -10 }}
+            >
+              ✕
+            </button>
+          </div>
+          <p style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--cream)", margin: 0, whiteSpace: "pre-wrap" }}>
+            {brief}
+          </p>
+        </div>
       )}
 
-      {/* Băng hoàn tác neo cố định ở đáy màn hình. Đặt trong luồng trang thì nó
-          trôi khỏi tầm nhìn khi người dùng đang ở giữa ma trận, và undo chỉ có
-          giá trị nếu kịp nhìn thấy mà bấm. */}
-      {hoanTac && (
-        <div
-          role="status"
-          className="toast-hoan-tac"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            background: "var(--navy-2)",
-            border: "1px solid var(--teal)",
-            borderRadius: 10,
-            padding: "10px 14px"
-          }}
-        >
-          <span style={{ fontSize: 13, color: "var(--cream)" }}>
-            {hoanTac.loai === "xong" ? "Đã đánh dấu xong" : "Đã xóa"} “{hoanTac.task.title}”
-          </span>
-          <button
-            onClick={() => (hoanTac.loai === "xong" ? hoanTacXong(hoanTac.task) : khoiPhuc(hoanTac.task))}
-            style={{
-              background: "transparent",
-              border: "1px solid var(--amber)",
-              color: "var(--amber)",
-              borderRadius: 8,
-              padding: "8px 14px",
-              fontSize: 13,
-              fontWeight: 600,
-              minHeight: 40,
-              flexShrink: 0
-            }}
-          >
-            Hoàn tác
-          </button>
+      {/* Mọi thông báo tạm thời gom về MỘT khu cố định ở đáy màn hình.
+          Trước đây "Đã lưu" nằm đầu trang còn "Hoàn tác" nằm đáy, mắt phải
+          canh hai vị trí. */}
+      {(daLuu || hoanTac) && (
+        <div className="toast-khu">
+          {daLuu && (
+            <div
+              role="status"
+              style={{
+                background: "var(--navy-2)",
+                border: "1px solid var(--teal)",
+                borderRadius: 10,
+                padding: "10px 14px",
+                color: "var(--teal)",
+                fontSize: 13
+              }}
+            >
+              ✓ {daLuu}
+            </div>
+          )}
+          {hoanTac && (
+            <div
+              role="status"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                background: "var(--navy-2)",
+                border: "1px solid var(--teal)",
+                borderRadius: 10,
+                padding: "10px 14px"
+              }}
+            >
+              <span style={{ fontSize: 13, color: "var(--cream)" }}>
+                {hoanTac.loai === "xong" ? "Đã đánh dấu xong" : "Đã xóa"} “{hoanTac.task.title}”
+              </span>
+              <button
+                onClick={() => (hoanTac.loai === "xong" ? hoanTacXong(hoanTac.task) : khoiPhuc(hoanTac.task))}
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--amber)",
+                  color: "var(--amber)",
+                  borderRadius: 8,
+                  padding: "8px 14px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  minHeight: 40,
+                  flexShrink: 0
+                }}
+              >
+                Hoàn tác
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -521,16 +590,45 @@ export default function Dashboard({ userName, email }: { userName: string; email
       {loading ? (
         <p style={{ color: "var(--slate)" }}>Đang tải…</p>
       ) : (
-        <TaskList
-          tasks={dsHienThi}
-          onDone={handleDone}
-          onDelete={handleDelete}
-          onReclassify={handleReclassify}
-          onFocus={(t) => {
-            setPhienKhoiPhuc(null);
-            setFocusId(t.id);
-          }}
-        />
+        <>
+          {/* Khu quá hạn ghim trên cùng, tách hẳn khỏi danh sách thường */}
+          {dsQuaHan.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div
+                className="mono"
+                style={{ fontSize: 11.5, color: "var(--coral)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}
+              >
+                ⚠ Quá hạn · {dsQuaHan.length}
+              </div>
+              <TaskList
+                tasks={dsQuaHan}
+                onDone={handleDone}
+                onDelete={handleDelete}
+                onReclassify={handleReclassify}
+                onFocus={(t) => {
+                  setPhienKhoiPhuc(null);
+                  setFocusThuNho(false);
+                  setFocusId(t.id);
+                }}
+              />
+            </div>
+          )}
+          {/* Danh sách thường; màn hình trống kiểu "chưa có việc nào" chỉ hiện
+              khi thật sự trống chứ không phải do bộ lọc */}
+          {(dsBinhThuong.length > 0 || (dsQuaHan.length === 0 && !dangLoc)) && (
+            <TaskList
+              tasks={dsBinhThuong}
+              onDone={handleDone}
+              onDelete={handleDelete}
+              onReclassify={handleReclassify}
+              onFocus={(t) => {
+                setPhienKhoiPhuc(null);
+                setFocusThuNho(false);
+                setFocusId(t.id);
+              }}
+            />
+          )}
+        </>
       )}
 
       {dangLoc && dsHienThi.length === 0 && tasks.length > 0 && (
@@ -565,11 +663,29 @@ export default function Dashboard({ userName, email }: { userName: string; email
           setNhipLamMoi((n) => n + 1);
         }}
       />
+      </>
+      )}
 
-      <ProfilePanel email={email} ten={tenGoi} onDoiTen={doiTenGoi} />
+      {/* Tab Nhìn lại: thống kê tuần và hồ sơ */}
+      {tab === "nhinlai" && <NhinLai email={email} ten={tenGoi} onDoiTen={doiTenGoi} />}
+
+      {/* Thanh điều hướng đáy */}
+      <nav className="nav-day" aria-label="Điều hướng chính">
+        <button onClick={() => setTab("homnay")} aria-current={tab === "homnay" ? "page" : undefined}>
+          ☀️ Hôm nay
+        </button>
+        <button onClick={() => setTab("nhinlai")} aria-current={tab === "nhinlai" ? "page" : undefined}>
+          📊 Nhìn lại
+        </button>
+      </nav>
+
+      {/* Thanh mini khi phiên tập trung được thu nhỏ */}
+      {focusTask && focusThuNho && (
+        <MiniFocusBar tieuDe={focusTask.title} onMo={() => setFocusThuNho(false)} />
+      )}
 
       {/* Nút nổi gọi trợ lý, thay cho ô nhập luôn chiếm màn hình chính */}
-      {!moBeIu && !focusTask && (
+      {tab === "homnay" && !moBeIu && !focusTask && (
         <button className="fab-beiu" onClick={() => setMoBeIu(true)} aria-label={`Thêm việc với ${TEN_TRO_LY}`}>
           ✨ {TEN_TRO_LY}
         </button>
@@ -608,9 +724,12 @@ export default function Dashboard({ userName, email }: { userName: string; email
         <FocusMode
           task={focusTask}
           phienCu={phienKhoiPhuc}
+          thuNho={focusThuNho}
+          onDoiThuNho={setFocusThuNho}
           onClose={() => {
             setFocusId(null);
             setPhienKhoiPhuc(null);
+            setFocusThuNho(false);
           }}
           onXongViec={handleDone}
           onDoiGhiChu={(id, notes) => handleReclassify(id, { notes })}
