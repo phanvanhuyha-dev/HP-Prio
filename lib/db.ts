@@ -434,6 +434,27 @@ export async function thongKeTuan(userEmail: string): Promise<ThongKeTuan> {
   });
 }
 
+// --- Cấu hình người dùng (đồng bộ mọi thiết bị) -----------------------------
+
+export async function getTenGoi(userEmail: string) {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<{ ten_goi: string | null }>`
+      SELECT ten_goi FROM user_settings WHERE user_email = ${userEmail}
+    `;
+    return rows[0]?.ten_goi ?? null;
+  });
+}
+
+export async function saveTenGoi(userEmail: string, ten: string | null) {
+  return chayVaTuSua(async () => {
+    await sql`
+      INSERT INTO user_settings (user_email, ten_goi)
+      VALUES (${userEmail}, ${ten})
+      ON CONFLICT (user_email) DO UPDATE SET ten_goi = EXCLUDED.ten_goi, updated_at = now()
+    `;
+  });
+}
+
 export async function getBrief(userEmail: string, ngay: string) {
   return chayVaTuSua(async () => {
     const { rows } = await sql<{ noi_dung: string }>`
@@ -541,7 +562,7 @@ export async function checkSchema() {
     SELECT table_name AS bang, column_name AS cot
     FROM information_schema.columns
     WHERE table_schema = 'public'
-      AND table_name IN ('tasks', 'push_subscriptions', 'focus_sessions')
+      AND table_name IN ('tasks', 'push_subscriptions', 'focus_sessions', 'daily_briefs', 'user_settings')
   `;
 
   const thucTe: Record<string, string[]> = {};

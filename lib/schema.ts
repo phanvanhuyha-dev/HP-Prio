@@ -79,6 +79,15 @@ export const CAU_LENH_SCHEMA: string[] = [
   // WHERE done_at IS NULL nên chạy lại bao nhiêu lần cũng chỉ tác dụng một lần.
   `UPDATE tasks SET done_at = updated_at WHERE status = 'done' AND done_at IS NULL`,
 
+  // Cấu hình người dùng, hiện mới có tên gọi. Lưu máy chủ để đồng bộ mọi
+  // thiết bị: từng lưu localStorage và người dùng đặt tên trên web xong mở
+  // iPhone vẫn thấy tên cũ.
+  `CREATE TABLE IF NOT EXISTS user_settings (
+     user_email TEXT PRIMARY KEY,
+     ten_goi TEXT,
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+
   // Điểm tin sáng do Bé iu viết, mỗi ngày một bản. Lưu lại để cron gửi push
   // xong thì mở app vẫn đọc được, và ai gọi trước thì người sau dùng bản cache
   // thay vì đốt thêm một lượt AI.
@@ -105,7 +114,8 @@ export const COT_BAT_BUOC: Record<string, string[]> = {
     "id", "user_email", "task_id", "task_title", "planned_minutes",
     "started_at", "ended_at", "seconds"
   ],
-  daily_briefs: ["user_email", "ngay", "noi_dung", "created_at"]
+  daily_briefs: ["user_email", "ngay", "noi_dung", "created_at"],
+  user_settings: ["user_email", "ten_goi", "updated_at"]
 };
 
 // Mã lỗi Postgres cho "thiếu bảng" và "thiếu cột".

@@ -66,14 +66,26 @@ export default function Dashboard({ userName, email }: { userName: string; email
     } catch {}
   }
 
-  function doiTenGoi(ten: string) {
+  // Tên gọi lưu MÁY CHỦ để mọi thiết bị cùng thấy; localStorage chỉ còn là
+  // bộ đệm cho lần vẽ đầu tiên khỏi nháy tên mặc định.
+  async function doiTenGoi(ten: string) {
     setTenGoi(ten);
     try {
       if (ten) localStorage.setItem("hpprio-ten", ten);
       else localStorage.removeItem("hpprio-ten");
     } catch {}
-    setDaLuu("Đã cập nhật tên gọi");
-    setTimeout(() => setDaLuu(null), 4000);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenGoi: ten })
+      });
+      if (!res.ok) throw new Error(await docLoi(res));
+      setDaLuu("Đã cập nhật tên gọi trên mọi thiết bị");
+      setTimeout(() => setDaLuu(null), 4000);
+    } catch (e: any) {
+      setError(loiThanThien(e));
+    }
   }
   // Chế độ tập trung: lưu id để luôn đọc bản task MỚI NHẤT từ danh sách
   // (đánh dấu checklist trong lúc tập trung cần thấy thay đổi ngay).
@@ -202,6 +214,28 @@ export default function Dashboard({ userName, email }: { userName: string; email
       const data = await res.json();
       setTasks(data.tasks || []);
       setDem(data.counts || { open: 0, done: 0, deleted: 0 });
+
+      // Tên gọi: máy chủ là nguồn chuẩn. Máy chủ chưa có mà máy này từng đặt
+      // tên trong localStorage (bản cũ) thì tự đẩy lên một lần, khỏi gõ lại.
+      const tenServer = typeof data.tenGoi === "string" ? data.tenGoi : "";
+      if (tenServer) {
+        setTenGoi(tenServer);
+        try {
+          localStorage.setItem("hpprio-ten", tenServer);
+        } catch {}
+      } else {
+        let tenCu = "";
+        try {
+          tenCu = localStorage.getItem("hpprio-ten") ?? "";
+        } catch {}
+        if (tenCu) {
+          fetch("/api/settings", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tenGoi: tenCu })
+          }).catch(() => {});
+        }
+      }
       // Tải lại thành công thì lỗi cũ không còn đúng nữa, phải xóa đi.
       setError(null);
     } catch (e: any) {

@@ -5,6 +5,7 @@ import {
   listTasks,
   createTask,
   countByStatus,
+  getTenGoi,
   isValidCategory,
   isValidStatus,
   normalizeDeadline
@@ -24,12 +25,13 @@ export async function GET(req: Request) {
   }
 
   try {
-    // Gộp đếm vào cùng lần gọi, để giao diện khỏi phải hỏi thêm hai request nữa.
-    const [tasks, counts] = await Promise.all([
+    // Gộp đếm và tên gọi vào cùng lần gọi, để giao diện khỏi hỏi thêm request.
+    const [tasks, counts, tenGoi] = await Promise.all([
       listTasks(session.user.email, requested),
-      countByStatus(session.user.email)
+      countByStatus(session.user.email),
+      getTenGoi(session.user.email)
     ]);
-    return NextResponse.json({ tasks, counts });
+    return NextResponse.json({ tasks, counts, tenGoi });
   } catch (err) {
     console.error("List tasks error:", err);
     return loiJson(describeDbError(err), "tasks");

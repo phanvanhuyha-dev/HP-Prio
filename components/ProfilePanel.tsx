@@ -104,7 +104,7 @@ export default function ProfilePanel({
               </button>
             </div>
             <p style={{ fontSize: 11.5, color: "var(--slate)", margin: "6px 0 0" }}>
-              Dùng trong lời chào. Để trống sẽ lấy tên từ tài khoản Google. Tên chỉ lưu trên thiết bị này.
+              Dùng trong lời chào, đồng bộ trên mọi thiết bị của anh. Để trống sẽ lấy tên từ tài khoản Google.
             </p>
           </div>
 
