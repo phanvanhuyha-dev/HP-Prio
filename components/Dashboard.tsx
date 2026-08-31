@@ -128,6 +128,23 @@ export default function Dashboard({ userName, email }: { userName: string; email
     return () => window.removeEventListener("keydown", dong);
   }, []);
 
+  // Lỗi WebKit nổi tiếng trên iOS: sau khi bàn phím đóng, các phần tử
+  // position:fixed neo đáy (thanh điều hướng, nút Bé iu) bị treo lơ lửng đúng
+  // bằng khoảng bàn phím cho tới cú cuộn kế tiếp. Nghe visualViewport: khi
+  // viewport trở về đúng cỡ màn hình thì hích cuộn 1px để WebKit neo lại.
+  useEffect(() => {
+    const vv = (window as any).visualViewport;
+    if (!vv) return;
+    const neoLai = () => {
+      if (Math.abs(vv.height + vv.offsetTop - window.innerHeight) < 2) {
+        window.scrollBy(0, 1);
+        window.scrollBy(0, -1);
+      }
+    };
+    vv.addEventListener("resize", neoLai);
+    return () => vv.removeEventListener("resize", neoLai);
+  }, []);
+
   // Thứ tự nhóm Eisenhower: Làm ngay -> Lên lịch -> Giao bớt -> Cân nhắc bỏ
   const thuTuNhom = (t: Task) =>
     t.user_urgent && t.user_important ? 0 : !t.user_urgent && t.user_important ? 1 : t.user_urgent ? 2 : 3;

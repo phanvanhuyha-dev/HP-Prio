@@ -145,14 +145,15 @@ select option:hover {
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
 }
 
-/* Thanh điều hướng đáy: Hôm nay / Nhìn lại */
+/* Thanh điều hướng đáy: Hôm nay / Nhìn lại.
+   Chỉ chừa vùng an toàn bằng padding-bottom, không cộng vào height nữa:
+   một phép tính là một chỗ có thể sai trên iOS. */
 .nav-day {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 45;
-  height: calc(58px + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   display: flex;
   background: var(--navy-2);
@@ -161,6 +162,7 @@ select option:hover {
 
 .nav-day button {
   flex: 1;
+  min-height: 58px;
   background: none;
   border: none;
   font-size: 11px;
