@@ -239,29 +239,6 @@ export async function parseTaskInput(rawInput: string): Promise<ParsedTask> {
   };
 }
 
-const ANALYSIS_PROMPT = `Bạn là cố vấn CHRO/Chuyên gia Quản trị Nhân sự cấp cao, phong cách thẳng thắn, thực tế, mang tính hành động.
-Dưới đây là danh sách công việc đang mở của người dùng (định dạng JSON), mỗi việc có: tiêu đề, nhãn (công/cá nhân), deadline, mức khẩn cấp, mức quan trọng.
-Bây giờ là {{TODAY}} (giờ Việt Nam, UTC+7).
-
-Hãy phân tích và trả về JSON gồm:
-- "summary": nhận định tổng quan ngắn gọn (2-3 câu) về tình trạng khối lượng công việc hiện tại
-- "recommendations": mảng 2-5 khuyến nghị hành động cụ thể (mỗi cái là 1 câu ngắn, hành động rõ ràng, vd "Xử lý việc X trước vì...", "Có thể hoãn/ủy quyền việc Y vì...")
-- "risks": mảng 0-3 rủi ro/cảnh báo nếu có (vd quá tải, nhiều việc quan trọng dồn cùng ngày, việc quan trọng bị bỏ quên vì không khẩn cấp)
-
-Chỉ trả JSON, không thêm chữ nào khác. Văn phong tiếng Việt, ngắn gọn, không sáo rỗng.
-XƯNG HÔ: bạn tên là "${TEN_TRO_LY}", xưng "em", gọi người dùng là "anh", tuyệt đối không dùng "bạn".
-Toàn bộ giao diện đang xưng "anh", lệch xưng hô ở đây làm phần khuyến nghị đọc như của một hệ thống khác.
-Giữ giọng chuyên môn thẳng thắn, không nũng nịu.
-
-Danh sách công việc:
-{{TASKS}}`;
-
-export type TaskAnalysis = {
-  summary: string;
-  recommendations: string[];
-  risks: string[];
-};
-
 const BREAKDOWN_PROMPT = `Bạn là "${TEN_TRO_LY}", trợ lý công việc cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam.
 Nhiệm vụ: chia công việc dưới đây thành các bước hành động cụ thể, theo đúng thứ tự nên làm.
 
@@ -295,7 +272,7 @@ export async function breakdownTask(t: {
   })();
 
   // Tiêu đề và ghi chú là dữ liệu người dùng nhập, dùng function replacer để
-  // các mẫu $&, $' trong đó không bị String.replace diễn giải (xem analyzeTasks).
+  // các mẫu $&, $' trong đó không bị String.replace diễn giải (xem routerBeIu).
   const prompt = BREAKDOWN_PROMPT.replace("{{TITLE}}", () => t.title)
     .replace("{{DEADLINE}}", han)
     .replace("{{NOTES}}", () => (t.notes?.trim() ? t.notes.slice(0, 2000) : "(trống)"));
@@ -310,27 +287,98 @@ export async function breakdownTask(t: {
     .slice(0, 10);
 }
 
-export async function analyzeTasks(tasks: unknown[]): Promise<TaskAnalysis> {
-  const { iso } = nowInVietnam();
-  // Thay {{TODAY}} trước để placeholder không bị dò trúng bên trong dữ liệu task.
-  // {{TASKS}} dùng function replacer: nếu truyền chuỗi, các mẫu $$, $&, $', $`
-  // trong tiêu đề công việc sẽ bị String.replace diễn giải và làm hỏng prompt.
-  // JSON.stringify(tasks, null, 2) in đẹp bằng 2 dấu cách mỗi cấp. Với 20 việc
-  // thì riêng khoảng trắng và xuống dòng đã chiếm phần đáng kể số token đầu vào,
-  // mà model không cần nó để đọc. Bỏ tham số in đẹp là cắt được luôn.
-  const prompt = ANALYSIS_PROMPT.replace("{{TODAY}}", iso).replace("{{TASKS}}", () =>
-    JSON.stringify(tasks)
-  );
+// ---------------------------------------------------------------------------
+// Bộ định tuyến ý định của trợ lý: một câu người dùng nói có thể là thêm việc,
+// báo xong, sửa việc, hoặc một câu hỏi/nhờ phân tích. AI chỉ ĐỀ XUẤT hành động
+// kèm dữ liệu; việc đối chiếu taskId với danh sách thật nằm ở route, còn xác
+// nhận cuối cùng nằm ở người dùng. Vai trò này thay luôn tính năng "Phân tích
+// & khuyến nghị" cũ: hỏi "hôm nay nên làm gì trước" là ra phân tích.
+const ROUTER_PROMPT = `Bạn là "${TEN_TRO_LY}", trợ lý công việc riêng cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam. Xưng "em", gọi người dùng là "anh". Giọng chuyên môn thẳng thắn, không nũng nịu.
+Bây giờ là {{WEEKDAY}}, {{TODAY}} (giờ Việt Nam, UTC+7).
+
+Danh sách việc đang mở của anh (JSON: id, title, category, deadline, urgent, important):
+{{TASKS}}
+
+Người dùng vừa nói: "{{TEXT}}"
+
+Xác định ý định và trả về ĐÚNG MỘT JSON theo một trong bốn dạng:
+
+1) Thêm việc mới (mặc định khi câu mô tả một việc cần làm):
+{"hanhDong":"them","viec":{"title":"...","category":"work|personal","deadline":"ISO 8601 kèm +07:00 hoặc null","urgent":true/false,"important":true/false,"reasoning":"1-2 câu, xưng em gọi anh"}}
+- title dưới 80 ký tự, GIỮ NGUYÊN tiền tố/mã người dùng cố ý gõ ([TEST], [GẤP], #DA01...).
+- deadline chỉ điền khi người dùng nói rõ hoặc gần như chắc chắn; mơ hồ thì null, TUYỆT ĐỐI không đoán bừa.
+
+2) Báo xong một việc trong danh sách (vd "xong việc X rồi", "đã gửi email đề án"):
+{"hanhDong":"xong","taskId":"<id lấy đúng từ danh sách>"}
+
+3) Sửa một việc trong danh sách (vd "dời hạn X sang thứ 6", "việc Y không gấp nữa", "thêm ghi chú ... vào việc Z"):
+{"hanhDong":"sua","taskId":"<id>","thayDoi":{...}}
+- thayDoi CHỈ chứa trường cần đổi: "title", "deadline" (ISO hoặc null nếu bỏ hạn), "category" ("work"/"personal"), "urgent" (true/false), "important" (true/false), "ghiChuThem" (chuỗi cần THÊM vào ghi chú).
+
+4) Trả lời câu hỏi / phân tích (vd "hôm nay nên làm gì trước?", "tuần này có rủi ro gì?"):
+{"hanhDong":"tra-loi","traLoi":"..."}
+- Trả lời ngắn gọn, hành động rõ, dựa trên danh sách việc ở trên. Được dùng xuống dòng và gạch đầu dòng "- ".
+
+Khi báo xong/sửa mà không xác định chắc chắn được việc nào khớp, dùng dạng 4 nói rõ em không tìm thấy và kể tên vài việc gần giống.
+Chỉ trả JSON, không thêm chữ nào khác.`;
+
+export type KetQuaRouter =
+  | { hanhDong: "them"; viec: ParsedTask }
+  | { hanhDong: "xong"; taskId: string }
+  | { hanhDong: "sua"; taskId: string; thayDoi: Record<string, unknown> }
+  | { hanhDong: "tra-loi"; traLoi: string };
+
+export async function routerBeIu(text: string, tasks: unknown[]): Promise<KetQuaRouter> {
+  const { iso, weekday } = nowInVietnam();
+  // Nội dung người dùng và danh sách việc đi qua function replacer để các mẫu
+  // $& $' không bị String.replace diễn giải (đã từng dính lỗi này ở analyze).
+  const prompt = ROUTER_PROMPT.replace("{{TODAY}}", iso)
+    .replace("{{WEEKDAY}}", weekday)
+    .replace("{{TASKS}}", () => JSON.stringify(tasks))
+    .replace("{{TEXT}}", () => text);
 
   const parsed = await sinhJson(prompt);
 
+  switch (parsed?.hanhDong) {
+    case "them": {
+      const v = parsed.viec ?? {};
+      return {
+        hanhDong: "them",
+        viec: {
+          title:
+            typeof v.title === "string" && v.title.trim()
+              ? v.title.trim().slice(0, 200)
+              : text.slice(0, 80),
+          category: v.category === "personal" ? "personal" : "work",
+          deadline: normalizeDeadline(v.deadline),
+          urgent: Boolean(v.urgent),
+          important: Boolean(v.important),
+          reasoning: typeof v.reasoning === "string" ? v.reasoning : ""
+        }
+      };
+    }
+    case "xong":
+      if (typeof parsed.taskId === "string") return { hanhDong: "xong", taskId: parsed.taskId };
+      break;
+    case "sua":
+      if (typeof parsed.taskId === "string") {
+        return {
+          hanhDong: "sua",
+          taskId: parsed.taskId,
+          thayDoi: typeof parsed.thayDoi === "object" && parsed.thayDoi ? parsed.thayDoi : {}
+        };
+      }
+      break;
+    case "tra-loi":
+      if (typeof parsed.traLoi === "string" && parsed.traLoi.trim()) {
+        return { hanhDong: "tra-loi", traLoi: parsed.traLoi.trim().slice(0, 4000) };
+      }
+      break;
+  }
+  // Model trả dạng lạ thì lùi về câu trả lời an toàn thay vì ném lỗi
   return {
-    summary: typeof parsed.summary === "string" ? parsed.summary : "",
-    recommendations: Array.isArray(parsed.recommendations)
-      ? parsed.recommendations.filter((r: unknown): r is string => typeof r === "string")
-      : [],
-    risks: Array.isArray(parsed.risks)
-      ? parsed.risks.filter((r: unknown): r is string => typeof r === "string")
-      : []
+    hanhDong: "tra-loi",
+    traLoi:
+      "Em chưa hiểu rõ ý anh. Anh nói lại giúp em: thêm việc, báo xong, sửa việc, hay hỏi về công việc?"
   };
 }

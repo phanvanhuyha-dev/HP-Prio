@@ -25,6 +25,23 @@
   color-scheme: dark;
 }
 
+/* Giao diện SÁNG, bật qua nút đổi giao diện (data-theme trên <html>).
+   Cùng bộ tên biến, vai trò đảo lại: --navy thành nền sáng, --cream thành chữ
+   tối. Toàn bộ đã kiểm WCAG AA 4.5:1 trên cả ba nền sáng, và chữ sáng trên
+   nút màu cũng đạt (thấp nhất 4.93). */
+[data-theme="light"] {
+  --navy: #F4F5F7;
+  --navy-2: #FFFFFF;
+  --field: #E9EBEF;
+  --cream: #16181C;
+  --slate: #616B77;
+  --amber: #0A7585;
+  --teal: #237854;
+  --coral: #C4371A;
+  --line: rgba(10, 15, 20, 0.12);
+  color-scheme: light;
+}
+
 * { box-sizing: border-box; }
 
 html, body {

@@ -7,5 +7,10 @@ export default async function Home() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
 
-  return <Dashboard userName={session.user.name || session.user.email || ""} />;
+  return (
+    <Dashboard
+      userName={session.user.name || session.user.email || ""}
+      email={session.user.email || ""}
+    />
+  );
 }

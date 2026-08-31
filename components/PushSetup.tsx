@@ -10,28 +10,23 @@ function urlBase64ToUint8Array(base64String: string) {
 
 type Status = "idle" | "enabled" | "denied" | "unsupported" | "error";
 
-export default function PushSetup() {
+// Thu gọn thành MỘT nút chuông trên thanh đầu trang, không còn chiếm một băng
+// riêng. Thông báo lỗi/diễn giải đẩy ra ngoài qua onThongBao để hiện ở băng
+// thông báo chung của Dashboard.
+export default function PushSetup({ onThongBao }: { onThongBao?: (msg: string) => void }) {
   const [status, setStatus] = useState<Status>("idle");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  // Cache promise đăng ký service worker để enablePush dùng lại.
   const regPromiseRef = useRef<Promise<ServiceWorkerRegistration> | null>(null);
 
-  // Lấy registration đã active để subscribe. Không await thẳng serviceWorker.ready ngay:
-  // .ready không bao giờ resolve nếu bước đăng ký thất bại, làm nút kẹt "Đang bật…" mãi.
   async function getActiveRegistration() {
     try {
       const regPromise = regPromiseRef.current ?? navigator.serviceWorker.register("/sw.js");
       regPromiseRef.current = regPromise;
       await regPromise;
     } catch (err) {
-      // Đăng ký thất bại thì bỏ cache, lần bấm sau thử đăng ký lại từ đầu thay vì
-      // nhận lại mãi đúng promise đã rejected.
       regPromiseRef.current = null;
       throw err;
     }
-    // Đăng ký thành công thì .ready chắc chắn resolve. Vẫn phải chờ worker active,
-    // vì pushManager.subscribe() sẽ lỗi nếu service worker mới cài chưa kịp active.
     return navigator.serviceWorker.ready;
   }
 
@@ -47,19 +42,14 @@ export default function PushSetup() {
     regPromise
       .then((reg) => reg.pushManager.getSubscription())
       .then((existing) => {
-        // Đã đăng ký từ lần trước thì hiện đúng trạng thái, không bắt bấm lại.
         if (!cancelled && existing && Notification.permission === "granted") {
           setStatus("enabled");
         }
       })
       .catch((err) => {
         console.error("Service worker error:", err);
-        // Bỏ promise hỏng để lần bấm "Bật nhắc deadline" tự đăng ký lại.
         regPromiseRef.current = null;
-        if (!cancelled) {
-          setStatus("error");
-          setMessage("Không đăng ký được service worker. Anh bấm thử lại hoặc tải lại trang.");
-        }
+        if (!cancelled) setStatus("error");
       });
 
     return () => {
@@ -69,25 +59,24 @@ export default function PushSetup() {
 
   async function enablePush() {
     setBusy(true);
-    setMessage(null);
     try {
       const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (!publicKey) {
         setStatus("error");
-        setMessage("Máy chủ chưa cấu hình khóa thông báo (NEXT_PUBLIC_VAPID_PUBLIC_KEY).");
+        onThongBao?.("Máy chủ chưa cấu hình khóa thông báo.");
         return;
       }
 
-      // iOS Safari chỉ cho xin quyền thông báo trong ngữ cảnh thao tác của người dùng.
-      // Phải gọi trước mọi bước await khác, nếu không có thể bị từ chối im lặng.
+      // iOS chỉ cho xin quyền trong ngữ cảnh thao tác của người dùng,
+      // phải gọi trước mọi bước await khác
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         setStatus("denied");
+        onThongBao?.("Trình duyệt đã chặn thông báo. Anh vào Cài đặt của trang để bật lại.");
         return;
       }
 
       const reg = await getActiveRegistration();
-
       const sub =
         (await reg.pushManager.getSubscription()) ||
         (await reg.pushManager.subscribe({
@@ -104,16 +93,13 @@ export default function PushSetup() {
         window.location.href = "/login";
         return;
       }
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error || "Không lưu được đăng ký thông báo");
-      }
+      if (!res.ok) throw new Error("Không lưu được đăng ký thông báo");
 
       setStatus("enabled");
     } catch (err: any) {
       console.error("Enable push error:", err);
       setStatus("error");
-      setMessage(err?.message || "Không bật được thông báo, thử lại sau.");
+      onThongBao?.(err?.message || "Không bật được thông báo, anh thử lại sau.");
     } finally {
       setBusy(false);
     }
@@ -121,42 +107,33 @@ export default function PushSetup() {
 
   if (status === "unsupported") return null;
 
+  const daBat = status === "enabled";
+  const nhan = daBat
+    ? "Đã bật nhắc deadline"
+    : status === "denied"
+      ? "Thông báo đang bị chặn, bấm để xem cách bật lại"
+      : "Bật nhắc deadline";
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-      {status === "enabled" ? (
-        <span className="mono" style={{ fontSize: 12, color: "var(--teal)" }}>
-          🔔 Đã bật nhắc deadline
-        </span>
-      ) : (
-        <button
-          onClick={enablePush}
-          disabled={busy}
-          style={{
-            background: "transparent",
-            border: "1px solid var(--line)",
-            color: "var(--cream)",
-            borderRadius: 8,
-            padding: "11px 16px",
-            fontSize: 13,
-            minHeight: 44,
-            opacity: busy ? 0.6 : 1
-          }}
-        >
-          {busy ? "Đang bật…" : "Bật nhắc deadline"}
-        </button>
-      )}
-
-      {status === "denied" && (
-        <span className="mono" style={{ fontSize: 11, color: "var(--coral)" }}>
-          Trình duyệt đã chặn thông báo, vào Cài đặt để bật lại
-        </span>
-      )}
-
-      {status === "error" && message && (
-        <span className="mono" style={{ fontSize: 11, color: "var(--coral)" }}>
-          {message}
-        </span>
-      )}
-    </div>
+    <button
+      onClick={
+        daBat
+          ? () => onThongBao?.("Nhắc deadline đang bật cho thiết bị này.")
+          : enablePush
+      }
+      disabled={busy}
+      aria-label={nhan}
+      title={nhan}
+      className="tap"
+      style={{
+        background: "none",
+        border: "none",
+        fontSize: 17,
+        color: daBat ? "var(--teal)" : status === "denied" || status === "error" ? "var(--coral)" : "var(--slate)",
+        opacity: busy ? 0.5 : 1
+      }}
+    >
+      {busy ? <span className="spinner" aria-hidden="true" /> : daBat ? "🔔" : "🔕"}
+    </button>
   );
 }

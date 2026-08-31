@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useId, CSSProperties } from "react";
 import { docLoi, loiThanThien, ngayVN } from "@/lib/client-api";
+import { TEN_TRO_LY } from "@/lib/branding";
 
 type ParsedTask = {
   title: string;
@@ -13,12 +14,14 @@ type ParsedTask = {
 
 type DraftTask = ParsedTask & { notes: string };
 
-// Đo thực tế: parse mất 1.2-3.7s. Để 30s là dư sức cho cả trường hợp khởi động
-// nguội cộng Gemini chậm, mà vẫn báo lỗi sớm khi request thật sự treo.
+// Đề xuất hành động từ trợ lý (báo xong / sửa việc), chờ người dùng xác nhận
+type DeXuat =
+  | { loai: "xong"; taskId: string; tieuDe: string }
+  | { loai: "sua"; taskId: string; tieuDe: string; capNhat: Record<string, unknown>; tomTat: string[] };
+
+// Đo thực tế: router trả lời trong 2-4 giây. 30 giây là dư cho khởi động nguội.
 const HAN_CHO_MS = 30000;
 
-// Ô <input type="datetime-local"> làm việc theo giờ máy người dùng.
-// Cắt chuỗi ISO bằng slice(0,16) sẽ hiện sai giờ khi chuỗi có offset múi giờ.
 function isoToLocalInput(iso: string | null) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -34,33 +37,31 @@ function localInputToIso(value: string) {
 }
 
 // Quy tắc DUY NHẤT cho việc tự điền ghi chú: giữ nguyên câu người dùng gõ,
-// trừ khi tiêu đề đã nói đúng y như vậy. Trước đây dùng ngưỡng độ dài nên lúc
-// điền lúc không, người dùng không đoán được.
+// trừ khi tiêu đề đã nói đúng y như vậy.
 function ghiChuMacDinh(cauGoc: string, tieuDe: string) {
   const chuanHoa = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
   return chuanHoa(cauGoc) === chuanHoa(tieuDe) ? "" : cauGoc.trim();
 }
 
-export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => void }) {
+export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string) => void }) {
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
   const [loading, setLoading] = useState(false);
   const [giay, setGiay] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<ParsedTask | null>(null);
+  const [deXuat, setDeXuat] = useState<DeXuat | null>(null);
+  const [traLoi, setTraLoi] = useState<string | null>(null);
   const [dungAI, setDungAI] = useState(true);
   const recognitionRef = useRef<any>(null);
   const abortRef = useRef<AbortController | null>(null);
-  // Chốt chống gửi trùng. Thuộc tính disabled chỉ có hiệu lực sau khi React
-  // render lại; máy chậm hoặc nhiều tab là đủ để hai cú bấm cùng lọt qua và
-  // bay mất hai lượt gọi Gemini. useRef có hiệu lực ngay lập tức.
+  // Chốt chống gửi trùng: disabled chỉ có hiệu lực sau khi React render lại,
+  // useRef chặn được ngay cả khi hai cú bấm rơi vào cùng một chu kỳ.
   const dangChayRef = useRef(false);
   const nhapId = useId();
 
-  // Safari trên iPhone/iPad KHÔNG hỗ trợ Web Speech API, kể cả khi dùng Chrome
-  // trên iOS (vì mọi trình duyệt ở iOS đều chạy lõi WebKit của Safari).
-  // Phải kiểm tra rồi thay nút micro bằng hướng dẫn, thay vì để người dùng bấm
-  // vào một nút không bao giờ chạy.
+  // Safari trên iPhone/iPad KHÔNG hỗ trợ Web Speech API (mọi trình duyệt iOS
+  // đều chạy lõi WebKit). Thay nút micro bằng hướng dẫn dùng bàn phím.
   const [hoTroMicro, setHoTroMicro] = useState<"chua-biet" | "co" | "khong">("chua-biet");
 
   useEffect(() => {
@@ -68,7 +69,6 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
     setHoTroMicro(SR ? "co" : "khong");
   }, []);
 
-  // Dọn micro và huỷ request đang bay khi rời màn hình.
   useEffect(() => {
     return () => {
       recognitionRef.current?.abort?.();
@@ -76,8 +76,6 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
     };
   }, []);
 
-  // Đếm giây khi đang chờ AI. Chờ 30-50s mà màn hình đứng im thì người dùng
-  // tưởng hỏng, thấy số giây chạy thì biết hệ thống vẫn đang làm việc.
   useEffect(() => {
     if (!loading) return setGiay(0);
     const t = setInterval(() => setGiay((g) => g + 1), 1000);
@@ -86,7 +84,7 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
 
   function toggleVoice() {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return; // nút đã bị thay bằng hướng dẫn, không tới đây
+    if (!SpeechRecognition) return;
 
     if (listening) {
       recognitionRef.current?.stop();
@@ -96,11 +94,9 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
     const recognition = new SpeechRecognition();
     recognition.lang = "vi-VN";
     recognition.interimResults = false;
-    // Không tự dừng sau câu đầu tiên, để nói được nhiều câu liền mạch.
     recognition.continuous = true;
 
     recognition.onresult = (e: any) => {
-      // Với continuous = true, e.results tích lũy dần nên chỉ lấy phần mới.
       let moi = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         if (e.results[i].isFinal) moi += e.results[i][0].transcript;
@@ -110,9 +106,6 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
     };
 
     recognition.onend = () => setListening(false);
-
-    // Trước đây hàm này chỉ tắt đèn mà không nói gì, nên bấm micro không ăn là
-    // người dùng không hề biết vì sao.
     recognition.onerror = (e: any) => {
       setListening(false);
       const loi: Record<string, string> = {
@@ -122,7 +115,6 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
         "audio-capture": "Không tìm thấy micro nào trên máy.",
         network: "Nhận giọng nói cần mạng, mà kết nối đang trục trặc."
       };
-      // "aborted" là do chính người dùng bấm dừng, không phải lỗi.
       if (e?.error === "aborted") return;
       setError(loi[e?.error] ?? `Không nhận được giọng nói (${e?.error ?? "lỗi không rõ"}).`);
     };
@@ -137,17 +129,15 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
     }
   }
 
-  // Bỏ qua AI: dựng sẵn bản nháp từ chính câu gõ. Việc đơn giản như "họp"
-  // không đáng phải chờ AI 30-50s.
+  // Bỏ qua AI: dựng sẵn bản nháp từ chính câu gõ, cho việc đơn giản như "họp"
   function boQuaAI() {
     const raw = text.trim();
     if (!raw) return;
-    // Đang chờ AI mà bấm nút này thì hủy luôn request, không bắt bấm Dừng trước.
-    // Đây đúng lúc người dùng sốt ruột nhất, bớt được một bước.
     abortRef.current?.abort();
     const dongDau = raw.split("\n")[0].trim();
     setDungAI(false);
     setError(null);
+    setTraLoi(null);
     setSuggestion({
       title: (dongDau.length > 80 ? dongDau.slice(0, 80) : dongDau) || raw.slice(0, 80),
       category: "work",
@@ -158,17 +148,17 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
     });
   }
 
-  async function handleAnalyze() {
+  // Gửi câu nói cho trợ lý: có thể ra 1 trong 4 hành động
+  async function handleGui() {
     if (!text.trim()) return;
     if (dangChayRef.current) return;
     dangChayRef.current = true;
     setLoading(true);
     setError(null);
+    setTraLoi(null);
 
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    // Phân biệt "hết giờ" với "người dùng bấm Dừng": hai việc này cần hai câu
-    // thông báo khác nhau, trước đây gộp làm một nên báo sai bản chất.
     let doHetGio = false;
     const hetGio = setTimeout(() => {
       doHetGio = true;
@@ -176,7 +166,7 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
     }, HAN_CHO_MS);
 
     try {
-      const res = await fetch("/api/parse", {
+      const res = await fetch("/api/beiu", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
@@ -186,11 +176,22 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
         window.location.href = "/login";
         return;
       }
-      // Không gọi thẳng res.json(): body có thể là text/plain khi hạ tầng trả 503.
       if (!res.ok) throw new Error(await docLoi(res));
-      const data = await res.json();
-      setDungAI(true);
-      setSuggestion(data.parsed);
+      const kq = await res.json();
+
+      if (kq.hanhDong === "them") {
+        setDungAI(true);
+        setSuggestion(kq.viec);
+      } else if (kq.hanhDong === "xong") {
+        setDeXuat({ loai: "xong", taskId: kq.taskId, tieuDe: kq.tieuDe });
+      } else if (kq.hanhDong === "sua") {
+        setDeXuat({ loai: "sua", taskId: kq.taskId, tieuDe: kq.tieuDe, capNhat: kq.capNhat, tomTat: kq.tomTat });
+      } else if (kq.hanhDong === "tra-loi") {
+        setTraLoi(kq.traLoi);
+        setText("");
+      } else {
+        throw new Error("Phản hồi không đúng định dạng");
+      }
     } catch (e: any) {
       setError(loiThanThien(doHetGio ? Object.assign(e ?? {}, { quaHan: true }) : e));
     } finally {
@@ -201,8 +202,35 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
     }
   }
 
-  function huyPhanTich() {
-    abortRef.current?.abort();
+  // Xác nhận đề xuất báo xong / sửa việc từ trợ lý
+  async function thucHienDeXuat() {
+    const dx = deXuat;
+    if (!dx || dangChayRef.current) return;
+    dangChayRef.current = true;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/tasks/${dx.taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dx.loai === "xong" ? { status: "done" } : dx.capNhat)
+      });
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (!res.ok) throw new Error(await docLoi(res));
+      const thongBao =
+        dx.loai === "xong" ? `Đã đánh dấu xong “${dx.tieuDe}”` : `Đã cập nhật “${dx.tieuDe}”`;
+      setText("");
+      setDeXuat(null);
+      onHoanTat(thongBao);
+    } catch (e: any) {
+      setError(loiThanThien(e));
+    } finally {
+      dangChayRef.current = false;
+      setLoading(false);
+    }
   }
 
   async function handleConfirm(final: DraftTask) {
@@ -210,7 +238,6 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
       setError("Tiêu đề không được để trống");
       return;
     }
-    // Chặn lưu hai lần thành hai việc trùng nhau
     if (dangChayRef.current) return;
     dangChayRef.current = true;
     setLoading(true);
@@ -238,13 +265,11 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
         window.location.href = "/login";
         return;
       }
-      // Lưu thất bại mà vẫn xóa trắng ô nhập thì người dùng mất nội dung vừa gõ
-      // mà tưởng đã lưu xong.
       if (!res.ok) throw new Error(await docLoi(res));
       const tieuDe = final.title.trim();
       setText("");
       setSuggestion(null);
-      onSaved(tieuDe);
+      onHoanTat(`Đã lưu “${tieuDe}”`);
     } catch (e: any) {
       setError(loiThanThien(e));
     } finally {
@@ -270,26 +295,91 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
     );
   }
 
+  // Đề xuất báo xong / sửa việc: hiện xác nhận, không tự làm gì cả
+  if (deXuat) {
+    return (
+      <div style={{ background: "var(--navy-2)", border: "1px solid var(--amber)", borderRadius: 16, padding: 20 }}>
+        <div className="mono" style={{ fontSize: 11, color: "var(--slate)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          {TEN_TRO_LY} hiểu là
+        </div>
+        <p style={{ fontSize: 15, color: "var(--cream)", margin: "0 0 4px", fontWeight: 600 }}>
+          {deXuat.loai === "xong" ? "Đánh dấu xong:" : "Cập nhật:"} “{deXuat.tieuDe}”
+        </p>
+        {deXuat.loai === "sua" && (
+          <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+            {deXuat.tomTat.map((d, i) => (
+              <li key={i} style={{ fontSize: 13.5, color: "var(--cream)", marginBottom: 4 }}>
+                {d}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {error && (
+          <p role="alert" style={{ color: "var(--coral)", fontSize: 13, marginTop: 12, marginBottom: 0 }}>
+            {error}
+          </p>
+        )}
+
+        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+          <button
+            onClick={() => {
+              setDeXuat(null);
+              setError(null);
+            }}
+            disabled={loading}
+            style={{ ...ghostBtn, flex: 1, opacity: loading ? 0.5 : 1 }}
+          >
+            Hủy
+          </button>
+          <button onClick={thucHienDeXuat} disabled={loading} style={{ ...primaryBtn, flex: 2, opacity: loading ? 0.6 : 1 }}>
+            {loading ? "Đang thực hiện…" : "✓ Xác nhận"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div
-      style={{
-        background: "var(--navy-2)",
-        border: "1px solid var(--line)",
-        borderRadius: 16,
-        padding: 18
-      }}
-    >
+    <div style={{ background: "var(--navy-2)", border: "1px solid var(--line)", borderRadius: 16, padding: 18 }}>
+      {/* Câu trả lời / phân tích của trợ lý; ô nhập vẫn mở để hỏi tiếp */}
+      {traLoi && (
+        <div
+          style={{
+            background: "var(--field)",
+            borderRadius: 12,
+            padding: "12px 14px",
+            marginBottom: 12
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span className="mono" style={{ fontSize: 10.5, color: "var(--amber)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              ✨ {TEN_TRO_LY}
+            </span>
+            <button
+              onClick={() => setTraLoi(null)}
+              aria-label="Đóng câu trả lời"
+              className="tap"
+              style={{ background: "none", border: "none", color: "var(--slate)", fontSize: 13, margin: -10 }}
+            >
+              ✕
+            </button>
+          </div>
+          <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--cream)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            {traLoi}
+          </div>
+        </div>
+      )}
+
       <label htmlFor={nhapId} className="sr-only">
-        Nội dung công việc cần thêm
+        Nói với {TEN_TRO_LY}
       </label>
       <textarea
         id={nhapId}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Nói hoặc gõ việc cần làm... vd: Gửi báo cáo định biên cho anh Nam trước thứ 6 tuần này"
+        placeholder={`Thêm việc, báo xong, sửa việc, hoặc hỏi ${TEN_TRO_LY}... vd: "Dời hạn báo cáo định biên sang thứ 6"`}
         rows={3}
-        // Khung nhập nay mở qua nút Bé iu: mở ra là gõ được luôn, không bắt
-        // bấm thêm một lần vào ô
         autoFocus
         style={{
           width: "100%",
@@ -305,11 +395,8 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
         {hoTroMicro === "khong" ? (
-          // Trên iPhone thì bàn phím iOS đã có sẵn nút đọc chính tả, chất lượng
-          // tiếng Việt còn tốt hơn. Chỉ đường tới đó thay vì bày một nút chết.
           <span style={{ fontSize: 12, color: "var(--slate)", maxWidth: 260, lineHeight: 1.4 }}>
-            Máy này không cho web dùng micro. Anh bấm vào ô nhập rồi chọn nút 🎤
-            trên bàn phím để đọc chính tả.
+            Máy này không cho web dùng micro. Anh bấm vào ô nhập rồi chọn nút 🎤 trên bàn phím để đọc chính tả.
           </span>
         ) : (
           <button
@@ -336,11 +423,10 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
         )}
 
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {/* Đường thoát khỏi nút thắt chờ AI: việc đơn giản thì lưu thẳng. */}
           <button
             onClick={boQuaAI}
             disabled={!text.trim()}
-            title={loading ? "Dừng AI và tự điền các trường" : "Tự điền các trường, không chờ AI"}
+            title={loading ? "Dừng AI và tự điền các trường" : "Thêm việc không cần AI"}
             style={{
               background: "transparent",
               color: "var(--cream)",
@@ -355,11 +441,9 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
             Bỏ qua AI
           </button>
 
-          {/* Nút Dừng phải NẰM RIÊNG, không được biến nút chính thành nút hủy:
-              nhấp đúp vào nút chính sẽ tự hủy chính request vừa gửi. */}
           {loading && (
             <button
-              onClick={huyPhanTich}
+              onClick={() => abortRef.current?.abort()}
               style={{
                 background: "transparent",
                 color: "var(--coral)",
@@ -374,7 +458,7 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
             </button>
           )}
           <button
-            onClick={handleAnalyze}
+            onClick={handleGui}
             disabled={!text.trim() || loading}
             style={{
               background: "var(--amber)",
@@ -392,14 +476,13 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
             }}
           >
             {loading && <span className="spinner" aria-hidden="true" />}
-            {loading ? `Đang phân tích ${giay}s` : "Phân tích với AI"}
+            {loading ? `Đang xử lý ${giay}s` : "Gửi ✨"}
           </button>
         </div>
       </div>
 
-      {/* Trình đọc màn hình cần được báo trạng thái, không chỉ đổi chữ trên nút. */}
       <p aria-live="polite" className="sr-only">
-        {loading ? `Đang phân tích, đã chờ ${giay} giây` : listening ? "Đang nghe" : ""}
+        {loading ? `Đang xử lý, đã chờ ${giay} giây` : listening ? "Đang nghe" : ""}
       </p>
 
       {listening && (
@@ -410,7 +493,7 @@ export default function TaskInput({ onSaved }: { onSaved: (tieuDe: string) => vo
 
       {loading && (
         <p style={{ fontSize: 12, color: "var(--slate)", marginTop: 10, marginBottom: 0 }}>
-          AI thường trả lời trong 2 đến 4 giây. Lâu hơn thì anh bấm “Bỏ qua AI” để tự nhập.
+          {TEN_TRO_LY} thường trả lời trong 2 đến 4 giây.
         </p>
       )}
 
@@ -450,26 +533,14 @@ function ReviewCard({
   const NGAN = 160;
   const quaDai = original.trim().length > NGAN;
   const trichDan = xemDayDu || !quaDai ? original.trim() : original.trim().slice(0, NGAN) + "…";
-
-  // Cảnh báo deadline đã qua. Trước đây nhận im lặng, người dùng không biết
-  // mình vừa đặt một mốc trong quá khứ.
   const daQua = draft.deadline ? new Date(draft.deadline).getTime() < Date.now() : false;
 
   return (
-    <div
-      style={{
-        background: "var(--navy-2)",
-        border: "1px solid var(--amber)",
-        borderRadius: 16,
-        padding: 20
-      }}
-    >
-      <div className="mono" style={{ fontSize: 11, color: "var(--slate)", marginBottom: 6 }}>
-        {dungAI ? "AI ĐỀ XUẤT, ANH DUYỆT LẠI TRƯỚC KHI LƯU" : "ANH TỰ ĐIỀN, KHÔNG DÙNG AI"}
+    <div style={{ background: "var(--navy-2)", border: "1px solid var(--amber)", borderRadius: 16, padding: 20 }}>
+      <div className="mono" style={{ fontSize: 11, color: "var(--slate)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        {dungAI ? `${TEN_TRO_LY} đề xuất, anh duyệt trước khi lưu` : "Anh tự điền, không dùng AI"}
       </div>
 
-      {/* Câu gõ dài chiếm gần nửa màn hình, đẩy các trường xuống dưới.
-          Rút gọn lại, ai cần thì mở ra xem. */}
       <p style={{ fontSize: 13, color: "var(--slate)", fontStyle: "italic", margin: "0 0 4px" }}>
         “{trichDan}”
         {quaDai && (
@@ -505,7 +576,7 @@ function ReviewCard({
             id={`${id}-cat`}
             value={draft.category}
             onChange={(e) => setDraft({ ...draft, category: e.target.value as any })}
-            style={selectStyle}
+            style={inputStyle}
           >
             <option value="work">Công việc cơ quan</option>
             <option value="personal">Cá nhân</option>
@@ -525,8 +596,6 @@ function ReviewCard({
               AI không đủ chắc chắn về ngày, anh tự điền nếu có hạn chót.
             </p>
           )}
-          {/* Ô datetime-local hiển thị theo ngôn ngữ trình duyệt, ra dạng
-              "01-Aug-2026 09:00 AM" và không ép được. Hiện thêm dòng tiếng Việt. */}
           {draft.deadline && (
             <p style={{ fontSize: 11.5, color: daQua ? "var(--coral)" : "var(--slate)", margin: "4px 0 0" }}>
               {daQua ? "⚠ Đã qua: " : "Tức là "}
@@ -563,8 +632,8 @@ function ReviewCard({
       </fieldset>
 
       {suggestion.reasoning && (
-        <p style={{ fontSize: 12.5, color: "var(--slate)", background: "rgba(255,255,255,0.04)", padding: "8px 10px", borderRadius: 8 }}>
-          💭 AI lý giải: {suggestion.reasoning}
+        <p style={{ fontSize: 12.5, color: "var(--slate)", background: "var(--field)", padding: "8px 10px", borderRadius: 8 }}>
+          💭 {suggestion.reasoning}
         </p>
       )}
 
@@ -634,10 +703,6 @@ const inputStyle: CSSProperties = {
   fontSize: 14,
   fontFamily: "var(--font-body)"
 };
-
-// Nền đục là bắt buộc với select: nền trong suốt khiến một số trình duyệt vẽ
-// khung danh sách xổ xuống bằng màu trắng mặc định.
-const selectStyle: CSSProperties = { ...inputStyle };
 
 const primaryBtn: CSSProperties = {
   background: "var(--amber)",

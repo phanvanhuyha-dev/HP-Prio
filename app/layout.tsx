@@ -36,6 +36,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="vi">
       <body>
+        {/* Áp giao diện sáng/tối đã lưu TRƯỚC khi React chạy, để trang không
+            nháy từ tối sang sáng lúc mở app. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('hpprio-theme')==='light')document.documentElement.dataset.theme='light'}catch(e){}`
+          }}
+        />
         <Providers>{children}</Providers>
       </body>
     </html>

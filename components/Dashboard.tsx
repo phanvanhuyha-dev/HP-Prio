@@ -5,13 +5,15 @@ import { docLoi, loiThanThien } from "@/lib/client-api";
 import { TEN_TRO_LY } from "@/lib/branding";
 import TaskInput from "./TaskInput";
 import TaskList, { type Task } from "./TaskList";
-import AnalysisPanel from "./AnalysisPanel";
 import PushSetup from "./PushSetup";
 import TrashPanel from "./TrashPanel";
 import DonePanel from "./DonePanel";
+import ProfilePanel from "./ProfilePanel";
 import FocusMode, { docPhienDangDo, xoaPhienDangDo, type PhienTapTrung } from "./FocusMode";
 
-export default function Dashboard({ userName }: { userName: string }) {
+const THU_VN = ["CHỦ NHẬT", "THỨ HAI", "THỨ BA", "THỨ TƯ", "THỨ NĂM", "THỨ SÁU", "THỨ BẢY"];
+
+export default function Dashboard({ userName, email }: { userName: string; email: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +30,41 @@ export default function Dashboard({ userName }: { userName: string }) {
 
   // Khung nhập việc nay nằm sau nút nổi "Bé iu", không chiếm màn hình chính nữa.
   const [moBeIu, setMoBeIu] = useState(false);
+
+  // Ngày giờ, tên gọi tùy chỉnh và giao diện sáng/tối: đọc sau khi mount để
+  // không lệch giữa bản render trên máy chủ và trên máy người dùng.
+  const [ngayHomNay, setNgayHomNay] = useState("");
+  const [tenGoi, setTenGoi] = useState("");
+  const [giaoDien, setGiaoDien] = useState<"dark" | "light">("dark");
+  useEffect(() => {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, "0");
+    setNgayHomNay(`${THU_VN[d.getDay()]}, ${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`);
+    try {
+      setTenGoi(localStorage.getItem("hpprio-ten") ?? "");
+      if (localStorage.getItem("hpprio-theme") === "light") setGiaoDien("light");
+    } catch {}
+  }, []);
+
+  function doiGiaoDien() {
+    const moi = giaoDien === "dark" ? "light" : "dark";
+    setGiaoDien(moi);
+    if (moi === "light") document.documentElement.dataset.theme = "light";
+    else delete document.documentElement.dataset.theme;
+    try {
+      localStorage.setItem("hpprio-theme", moi);
+    } catch {}
+  }
+
+  function doiTenGoi(ten: string) {
+    setTenGoi(ten);
+    try {
+      if (ten) localStorage.setItem("hpprio-ten", ten);
+      else localStorage.removeItem("hpprio-ten");
+    } catch {}
+    setDaLuu("Đã cập nhật tên gọi");
+    setTimeout(() => setDaLuu(null), 4000);
+  }
   // Chế độ tập trung: lưu id để luôn đọc bản task MỚI NHẤT từ danh sách
   // (đánh dấu checklist trong lúc tập trung cần thấy thay đổi ngay).
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -105,11 +142,14 @@ export default function Dashboard({ userName }: { userName: string }) {
     }
   }, [focusId, loading, tasks]);
 
-  function handleSaved(tieuDe: string) {
+  // Bé iu hoàn tất một hành động (lưu việc, báo xong, sửa việc): đóng khung,
+  // hiện thông báo, tải lại danh sách.
+  function handleBeIuHoanTat(thongBao: string) {
     setMoBeIu(false);
-    setDaLuu(tieuDe);
+    setDaLuu(thongBao);
     setTimeout(() => setDaLuu(null), 4000);
     loadTasks();
+    setNhipLamMoi((n) => n + 1);
   }
 
   const loadTasks = useCallback(async () => {
@@ -250,16 +290,17 @@ export default function Dashboard({ userName }: { userName: string }) {
     // Danh sách dọc đọc thoải mái nhất trong một cột hẹp; 1040px là di sản của
     // bố cục ma trận 2x2 cũ, nay thu về 680px.
     <main style={{ maxWidth: 680, margin: "0 auto", padding: "24px 16px 80px" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 22 }}>
-        <div>
-          <div className="mono" style={{ fontSize: 11.5, color: "var(--teal)", letterSpacing: "0.12em" }}>
-            HPPRIO
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 22 }}>
+        <div style={{ minWidth: 0 }}>
+          {/* Dòng ngày kiểu "THỨ HAI, 31/08/2026" theo mẫu tham chiếu */}
+          <div className="mono" style={{ fontSize: 11, color: "var(--slate)", letterSpacing: "0.14em", minHeight: 15 }}>
+            {ngayHomNay}
           </div>
-          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 700, letterSpacing: "-0.01em", margin: "2px 0 0", color: "var(--cream)" }}>
-            Chào {userName.split(" ")[0] || userName}
+          <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em", margin: "4px 0 0", color: "var(--cream)", lineHeight: 1.25 }}>
+            Chào {tenGoi || userName.split(" ")[0] || userName}.
           </h1>
           {!loading && (
-            <p style={{ fontSize: 13.5, color: "var(--slate)", margin: "4px 0 0" }}>
+            <p style={{ fontSize: 14, color: "var(--slate)", margin: "4px 0 0" }}>
               {soLamNgay > 0
                 ? `Anh có ${soLamNgay} việc cần làm ngay hôm nay.`
                 : tasks.length > 0
@@ -268,24 +309,35 @@ export default function Dashboard({ userName }: { userName: string }) {
             </p>
           )}
         </div>
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          style={{
-            background: "none",
-            border: "none",
-            color: "var(--slate)",
-            fontSize: 13,
-            minHeight: 44,
-            padding: "0 4px"
-          }}
-        >
-          Đăng xuất
-        </button>
-      </header>
 
-      <div style={{ marginBottom: 18 }}>
-        <PushSetup />
-      </div>
+        {/* Cụm nút gọn: chuông nhắc, đổi giao diện, đăng xuất */}
+        <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+          <PushSetup
+            onThongBao={(m) => {
+              setDaLuu(m);
+              setTimeout(() => setDaLuu(null), 4000);
+            }}
+          />
+          <button
+            onClick={doiGiaoDien}
+            className="tap"
+            aria-label={giaoDien === "dark" ? "Chuyển giao diện sáng" : "Chuyển giao diện tối"}
+            title={giaoDien === "dark" ? "Chuyển giao diện sáng" : "Chuyển giao diện tối"}
+            style={{ background: "none", border: "none", fontSize: 16, color: "var(--slate)" }}
+          >
+            {giaoDien === "dark" ? "☀️" : "🌙"}
+          </button>
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="tap"
+            aria-label="Đăng xuất"
+            title="Đăng xuất"
+            style={{ background: "none", border: "none", fontSize: 16, color: "var(--slate)" }}
+          >
+            ⎋
+          </button>
+        </div>
+      </header>
 
       {/* Trước đây lưu xong không có xác nhận nào, người dùng phải tự dò trong
           ma trận xem việc đã vào chưa. */}
@@ -303,7 +355,7 @@ export default function Dashboard({ userName }: { userName: string }) {
             padding: "8px 12px"
           }}
         >
-          ✓ Đã lưu “{daLuu}”
+          ✓ {daLuu}
         </p>
       )}
 
@@ -514,7 +566,7 @@ export default function Dashboard({ userName }: { userName: string }) {
         }}
       />
 
-      <AnalysisPanel />
+      <ProfilePanel email={email} ten={tenGoi} onDoiTen={doiTenGoi} />
 
       {/* Nút nổi gọi trợ lý, thay cho ô nhập luôn chiếm màn hình chính */}
       {!moBeIu && !focusTask && (
@@ -546,7 +598,7 @@ export default function Dashboard({ userName }: { userName: string }) {
                 ✕
               </button>
             </div>
-            <TaskInput onSaved={handleSaved} />
+            <TaskInput onHoanTat={handleBeIuHoanTat} />
           </div>
         </div>
       )}
