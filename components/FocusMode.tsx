@@ -5,7 +5,7 @@ import { demBuoc, themBuocVaoGhiChu } from "@/lib/checklist";
 import { TEN_TRO_LY } from "@/lib/branding";
 import NotesView from "./NotesView";
 import type { Task } from "./TaskList";
-import { IcSpark, IcCheckTron } from "./icons";
+import { IcSpark, IcCheckTron, IcPlay } from "./icons";
 
 // Phiên đang chạy, lưu vào localStorage để iOS có "giết" app giữa chừng
 // (chuyện thường với PWA) thì mở lại vẫn tiếp tục đúng chỗ. Đồng hồ tính theo
@@ -553,10 +553,15 @@ export default function FocusMode({
                 padding: "15px 0",
                 fontSize: 16,
                 fontWeight: 700,
-                minHeight: 54
+                minHeight: 54,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 9
               }}
             >
-              ▶ Bắt đầu{phutHopLe ? ` · ${phutHieuLuc} phút` : ""}
+              <IcPlay size={15} />
+              Bắt đầu{phutHopLe ? ` · ${phutHieuLuc} phút` : ""}
             </button>
             {phutChon === "khac" && !phutHopLe && phutKhac !== "" && (
               <p role="alert" style={{ fontSize: 12, color: "var(--coral)", margin: "8px 0 0" }}>

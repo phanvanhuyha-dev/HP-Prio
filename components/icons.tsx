@@ -28,6 +28,14 @@ export const IcSpark = ({ size = 16, style }: P) => (
   </svg>
 );
 
+// Nút tập trung / bắt đầu. Ký tự "▶" không dùng được: iOS vẽ nó thành emoji
+// nút play màu xanh thay vì chữ đơn sắc.
+export const IcPlay = ({ size = 16, style }: P) => (
+  <svg {...goc(size, style)} fill="currentColor" stroke="none">
+    <path d="M7.5 4.8c0-1 1.1-1.6 2-1.1l11 6.4c.9.5.9 1.8 0 2.3l-11 6.4c-.9.5-2-.1-2-1.1V4.8z" />
+  </svg>
+);
+
 export const IcBell = ({ size = 16, style }: P) => (
   <svg {...goc(size, style)}>
     <path d="M18 16H6c1.2-1.4 1.5-2.7 1.5-5a4.5 4.5 0 019 0c0 2.3.3 3.6 1.5 5z" />

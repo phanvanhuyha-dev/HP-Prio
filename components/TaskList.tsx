@@ -4,7 +4,7 @@ import NotesView from "./NotesView";
 import { demBuoc, themBuocVaoGhiChu } from "@/lib/checklist";
 import { docLoi, loiThanThien, rung } from "@/lib/client-api";
 import { TEN_TRO_LY } from "@/lib/branding";
-import { IcSpark, IcHome, IcCoQuan } from "./icons";
+import { IcSpark, IcHome, IcCoQuan, IcPlay } from "./icons";
 
 export type Task = {
   id: string;
@@ -209,9 +209,9 @@ function TaskRow({
             title="Tập trung vào việc này"
             aria-label={`Tập trung vào: ${task.title}`}
             className="tap"
-            style={{ background: "none", border: "none", color: "var(--amber)", fontSize: 13, padding: 0, margin: "-10px 0" }}
+            style={{ background: "none", border: "none", color: "var(--amber)", padding: 0, margin: "-10px 0" }}
           >
-            ▶
+            <IcPlay size={13} />
           </button>
           <button
             onClick={() => onDone(task.id)}

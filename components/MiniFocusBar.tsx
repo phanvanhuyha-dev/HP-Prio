@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { docPhienDangDo } from "./FocusMode";
+import { IcPlay } from "./icons";
 
 // Thanh mini hiện khi phiên tập trung được thu nhỏ: đồng hồ vẫn chạy trong
 // FocusMode (được mount ẩn), thanh này chỉ ĐỌC mốc thời gian từ localStorage
@@ -22,7 +23,9 @@ export default function MiniFocusBar({ tieuDe, onMo }: { tieuDe: string; onMo: (
 
   return (
     <button className="mini-focus" onClick={onMo} aria-label={`Mở lại phiên tập trung: ${tieuDe}`}>
-      <span aria-hidden="true" style={{ color: "var(--amber)" }}>▶</span>
+      <span aria-hidden="true" style={{ color: "var(--amber)", display: "inline-flex" }}>
+        <IcPlay size={13} />
+      </span>
       <span className="mono" style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{mm}</span>
       <span
         style={{
