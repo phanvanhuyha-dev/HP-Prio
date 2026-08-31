@@ -1,5 +1,6 @@
 import { listTasks, getBrief, saveBrief, ngayVNHomNay, type Task } from "./db";
 import { briefDaily } from "./gemini";
+import { suKienSapToi, moTaLichChoAI } from "./calendar";
 
 const NGAY_NAM_IM = 14;
 
@@ -44,7 +45,13 @@ export async function layHoacTaoBrief(userEmail: string): Promise<string | null>
   const tasks = await listTasks(userEmail, "open");
   if (tasks.length === 0) return null;
 
-  const brief = await briefDaily(phanLoaiChoBrief(tasks));
+  // Lịch họp là ngữ cảnh phụ, lỗi thì bỏ qua
+  let lich = "";
+  try {
+    lich = moTaLichChoAI((await suKienSapToi()).suKien);
+  } catch {}
+
+  const brief = await briefDaily({ ...phanLoaiChoBrief(tasks), lich });
   await saveBrief(userEmail, ngay, brief);
   return brief;
 }

@@ -300,6 +300,9 @@ Dữ liệu công việc của anh:
 - Nằm im quá 14 ngày không đụng tới (không có hạn): {{NAM_IM}}
 - Tổng việc đang mở: {{TONG}}
 
+Lịch họp hôm nay của anh:
+{{LICH}}
+
 Viết một ĐIỂM TIN SÁNG ngắn (3-5 câu, tối đa 600 ký tự) theo thứ tự: (1) việc quá hạn nếu có, nêu đích danh; (2) việc đến hạn hôm nay; (3) gợi ý nên bắt đầu với việc nào và vì sao, chỉ MỘT việc; (4) nếu có việc nằm im, nhắc đúng một câu hỏi anh còn cần nó không. Không liệt kê lại toàn bộ, chỉ nêu thứ đáng chú ý. Không mở đầu bằng "Chào anh" (giao diện đã chào rồi).
 
 Trả về JSON: {"brief":"..."}`;
@@ -310,6 +313,7 @@ export async function briefDaily(duLieu: {
   lamNgay: string[];
   namIm: string[];
   tong: number;
+  lich?: string;
 }): Promise<string> {
   const { iso, weekday } = nowInVietnam();
   const ke = (ds: string[]) => (ds.length ? ds.map((t) => `"${t}"`).join(", ") : "(không có)");
@@ -319,7 +323,8 @@ export async function briefDaily(duLieu: {
     .replace("{{HOM_NAY}}", () => ke(duLieu.homNay))
     .replace("{{LAM_NGAY}}", () => ke(duLieu.lamNgay))
     .replace("{{NAM_IM}}", () => ke(duLieu.namIm))
-    .replace("{{TONG}}", String(duLieu.tong));
+    .replace("{{TONG}}", String(duLieu.tong))
+    .replace("{{LICH}}", () => (duLieu.lich?.trim() ? duLieu.lich : "(trống hoặc chưa kết nối lịch)"));
 
   const parsed = await sinhJson(prompt);
   const brief = typeof parsed?.brief === "string" ? parsed.brief.trim() : "";
@@ -377,6 +382,9 @@ Bây giờ là {{WEEKDAY}}, {{TODAY}} (giờ Việt Nam, UTC+7).
 Danh sách việc đang mở của anh (JSON: id, title, category, deadline, urgent, important):
 {{TASKS}}
 
+Lịch họp hôm nay của anh (để cân nhắc khi tư vấn, KHÔNG phải việc trong danh sách):
+{{LICH}}
+
 Người dùng vừa nói: "{{TEXT}}"
 
 Xác định ý định và trả về ĐÚNG MỘT JSON theo một trong bốn dạng:
@@ -406,13 +414,18 @@ export type KetQuaRouter =
   | { hanhDong: "sua"; taskId: string; thayDoi: Record<string, unknown> }
   | { hanhDong: "tra-loi"; traLoi: string };
 
-export async function routerBeIu(text: string, tasks: unknown[]): Promise<KetQuaRouter> {
+export async function routerBeIu(
+  text: string,
+  tasks: unknown[],
+  lichHomNay?: string
+): Promise<KetQuaRouter> {
   const { iso, weekday } = nowInVietnam();
   // Nội dung người dùng và danh sách việc đi qua function replacer để các mẫu
   // $& $' không bị String.replace diễn giải (đã từng dính lỗi này ở analyze).
   const prompt = ROUTER_PROMPT.replace("{{TODAY}}", iso)
     .replace("{{WEEKDAY}}", weekday)
     .replace("{{TASKS}}", () => JSON.stringify(tasks))
+    .replace("{{LICH}}", () => (lichHomNay?.trim() ? lichHomNay : "(trống hoặc chưa kết nối lịch)"))
     .replace("{{TEXT}}", () => text);
 
   const parsed = await sinhJson(prompt);

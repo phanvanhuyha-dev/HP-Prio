@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { listTasks, isValidCategory, normalizeDeadline, type Task } from "@/lib/db";
 import { routerBeIu } from "@/lib/gemini";
+import { suKienSapToi, moTaLichChoAI } from "@/lib/calendar";
 import { describeDbError, describeGeminiError, loiJson } from "@/lib/diagnostics";
 import { TEN_TRO_LY } from "@/lib/branding";
 
@@ -62,9 +63,15 @@ export async function POST(req: Request) {
     important: t.user_important
   }));
 
+  // Lịch họp là ngữ cảnh phụ: lỗi thì bỏ qua, không chặn trợ lý
+  let lich = "";
+  try {
+    lich = moTaLichChoAI((await suKienSapToi()).suKien);
+  } catch {}
+
   let kq;
   try {
-    kq = await routerBeIu(text.trim(), compact);
+    kq = await routerBeIu(text.trim(), compact, lich);
   } catch (err) {
     console.error("BeIu router error:", err);
     return loiJson(describeGeminiError(err), "beiu");

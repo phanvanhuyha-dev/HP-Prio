@@ -11,6 +11,7 @@ import DonePanel from "./DonePanel";
 import FocusMode, { docPhienDangDo, xoaPhienDangDo, type PhienTapTrung } from "./FocusMode";
 import MiniFocusBar from "./MiniFocusBar";
 import NhinLai from "./NhinLai";
+import CalendarStrip from "./CalendarStrip";
 
 const THU_VN = ["CHỦ NHẬT", "THỨ HAI", "THỨ BA", "THỨ TƯ", "THỨ NĂM", "THỨ SÁU", "THỨ BẢY"];
 
@@ -409,6 +410,9 @@ export default function Dashboard({ userName, email }: { userName: string; email
           </p>
         </div>
       )}
+
+      {/* Lịch họp hôm nay (Outlook + Google qua ICS), tự ẩn khi trống */}
+      <CalendarStrip />
 
       {/* Mọi thông báo tạm thời gom về MỘT khu cố định ở đáy màn hình.
           Trước đây "Đã lưu" nằm đầu trang còn "Hoàn tác" nằm đáy, mắt phải

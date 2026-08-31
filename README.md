@@ -129,7 +129,17 @@ Nếu muốn nhắc sát giờ hơn (vd mỗi giờ, `0 * * * *`), phải nâng 
 
 ---
 
-## 7. Kiểm tra cấu hình khi có lỗi
+## 7. Lịch hôm nay (Outlook + Google, tùy chọn)
+
+App hiện được các cuộc họp hôm nay phía trên danh sách việc, và Bé iu tính đến lịch họp khi tư vấn. Cơ chế: đường liên kết iCal bí mật (secret ICS link), chỉ đọc, không cần OAuth, chạy cho cả Outlook lẫn Google.
+
+Cách lấy liên kết:
+- **Google Calendar**: Cài đặt > chọn lịch > "Tích hợp lịch" > **Địa chỉ bí mật ở định dạng iCal**.
+- **Outlook** (web): Cài đặt > Lịch > Lịch dùng chung > **Xuất bản lịch** > chọn lịch, quyền "Có thể xem mọi chi tiết" > copy liên kết **ICS**.
+
+Dán vào biến môi trường `ICS_URLS` trên Vercel, nhiều lịch cách nhau bằng dấu phẩy, rồi Redeploy. Lưu ý: liên kết này cho phép ĐỌC toàn bộ lịch của anh, giữ kín như mật khẩu; lộ thì vào đúng trang cài đặt trên để đặt lại (reset) liên kết. Lịch có bộ đệm khoảng 10 phút nên thay đổi mới không hiện tức thì.
+
+## 8. Kiểm tra cấu hình khi có lỗi
 
 Đăng nhập vào app rồi mở đường dẫn `/api/health` trên domain của anh:
 
@@ -141,7 +151,7 @@ Trang này liệt kê một lần cho biết: biến môi trường nào còn th
 
 Trang chỉ mở cho tài khoản đã đăng nhập và **không bao giờ hiện giá trị của biến bí mật**, chỉ hiện có hay không.
 
-## 8. Lỗi hay gặp
+## 9. Lỗi hay gặp
 
 ### Build báo `TypeError: Invalid URL` khi prerender `/`, `/login`, `/_not-found`
 
