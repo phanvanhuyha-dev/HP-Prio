@@ -113,7 +113,7 @@ export default function DonePanel({
                   {t.title}
                 </div>
                 <div className="mono" style={{ fontSize: 11, color: "var(--slate)", marginTop: 3 }}>
-                  {t.category === "work" ? "🏢 Cơ quan" : "🏠 Cá nhân"}
+                  {t.category === "work" ? "Cơ quan" : "Cá nhân"}
                   {t.deadline ? ` · hạn ${ngayVN(t.deadline)}` : ""}
                 </div>
               </div>

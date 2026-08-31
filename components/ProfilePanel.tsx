@@ -38,7 +38,7 @@ export default function ProfilePanel({
         }}
       >
         <span id="tieu-de-ho-so" style={{ fontSize: 16, fontWeight: 600, color: "var(--cream)" }}>
-          👤 Hồ sơ
+          Hồ sơ
         </span>
         <span className="mono" style={{ fontSize: 11.5 }}>{mo ? "thu gọn" : "xem"}</span>
       </button>

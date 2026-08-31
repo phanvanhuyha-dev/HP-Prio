@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useId, CSSProperties } from "react";
 import { docLoi, loiThanThien, ngayVN } from "@/lib/client-api";
 import { TEN_TRO_LY } from "@/lib/branding";
+import { IcSpark, IcMic, IcStop } from "./icons";
 
 type ParsedTask = {
   title: string;
@@ -353,8 +354,11 @@ export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string)
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span className="mono" style={{ fontSize: 10.5, color: "var(--amber)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-              ✨ {TEN_TRO_LY}
+            <span
+              className="mono"
+              style={{ fontSize: 10.5, color: "var(--amber)", textTransform: "uppercase", letterSpacing: "0.1em", display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <IcSpark size={11} /> {TEN_TRO_LY}
             </span>
             <button
               onClick={() => setTraLoi(null)}
@@ -418,7 +422,7 @@ export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string)
               color: listening ? "var(--navy)" : "var(--cream)"
             }}
           >
-            {listening ? "⏹" : "🎙"}
+            {listening ? <IcStop size={16} /> : <IcMic size={17} />}
           </button>
         )}
 
@@ -476,7 +480,13 @@ export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string)
             }}
           >
             {loading && <span className="spinner" aria-hidden="true" />}
-            {loading ? `Đang xử lý ${giay}s` : "Gửi ✨"}
+            {loading ? (
+              `Đang xử lý ${giay}s`
+            ) : (
+              <>
+                Gửi <IcSpark size={13} />
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -487,7 +497,11 @@ export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string)
 
       {listening && (
         <p style={{ fontSize: 12.5, color: "var(--coral)", marginTop: 10, marginBottom: 0 }}>
-          🔴 Đang nghe, anh nói bình thường. Nói xong bấm lại nút micro để dừng.
+          <span
+            aria-hidden="true"
+            style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "var(--coral)", marginRight: 7 }}
+          />
+          Đang nghe, anh nói bình thường. Nói xong bấm lại nút micro để dừng.
         </p>
       )}
 
@@ -598,7 +612,7 @@ function ReviewCard({
           )}
           {draft.deadline && (
             <p style={{ fontSize: 11.5, color: daQua ? "var(--coral)" : "var(--slate)", margin: "4px 0 0" }}>
-              {daQua ? "⚠ Đã qua: " : "Tức là "}
+              {daQua ? "Đã qua: " : "Tức là "}
               {ngayVN(draft.deadline)}
             </p>
           )}
@@ -633,7 +647,8 @@ function ReviewCard({
 
       {suggestion.reasoning && (
         <p style={{ fontSize: 12.5, color: "var(--slate)", background: "var(--field)", padding: "8px 10px", borderRadius: 8 }}>
-          💭 {suggestion.reasoning}
+          <IcSpark size={11} style={{ marginRight: 6 }} />
+          {suggestion.reasoning}
         </p>
       )}
 

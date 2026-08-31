@@ -107,7 +107,7 @@ export default function TrashPanel({
         }}
       >
         <span id="tieu-de-thung-rac" style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--cream)" }}>
-          🗑 Thùng rác
+          Thùng rác
         </span>
         <span className="mono" style={{ fontSize: 11.5 }}>
           {mo ? items.length : soLuong} việc · {mo ? "thu gọn" : "xem"}

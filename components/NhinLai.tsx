@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { docLoi, loiThanThien } from "@/lib/client-api";
 import { TEN_TRO_LY } from "@/lib/branding";
 import ProfilePanel from "./ProfilePanel";
+import { IcSpark } from "./icons";
 
 type ThongKe = {
   focusNgay: { ngay: string; giay: number; phien: number }[];
@@ -143,8 +144,11 @@ export default function NhinLai({
       <div style={{ marginBottom: 14 }}>
         {tomTat ? (
           <div style={{ background: "var(--navy-2)", border: "1px solid var(--line)", borderLeft: "3px solid var(--amber)", borderRadius: 12, padding: "12px 14px" }}>
-            <div className="mono" style={{ fontSize: 10.5, color: "var(--amber)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>
-              ✨ {TEN_TRO_LY} nhận định
+            <div
+              className="mono"
+              style={{ fontSize: 10.5, color: "var(--amber)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <IcSpark size={11} /> {TEN_TRO_LY} nhận định
             </div>
             <p style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--cream)", margin: 0, whiteSpace: "pre-wrap" }}>{tomTat}</p>
           </div>
@@ -167,8 +171,8 @@ export default function NhinLai({
               opacity: dangTomTat ? 0.6 : 1
             }}
           >
-            {dangTomTat && <span className="spinner" aria-hidden="true" />}
-            {dangTomTat ? "Đang viết…" : `✨ ${TEN_TRO_LY} tóm tắt tuần`}
+            {dangTomTat ? <span className="spinner" aria-hidden="true" /> : <IcSpark size={13} />}
+            {dangTomTat ? "Đang viết…" : `${TEN_TRO_LY} tóm tắt tuần`}
           </button>
         )}
       </div>

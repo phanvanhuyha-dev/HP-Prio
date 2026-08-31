@@ -12,6 +12,7 @@ import FocusMode, { docPhienDangDo, xoaPhienDangDo, type PhienTapTrung } from ".
 import MiniFocusBar from "./MiniFocusBar";
 import NhinLai from "./NhinLai";
 import CalendarStrip from "./CalendarStrip";
+import { IcSpark, IcSun, IcMoon, IcList, IcChart } from "./icons";
 
 const THU_VN = ["CHỦ NHẬT", "THỨ HAI", "THỨ BA", "THỨ TƯ", "THỨ NĂM", "THỨ SÁU", "THỨ BẢY"];
 
@@ -364,7 +365,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
             title={giaoDien === "dark" ? "Chuyển giao diện sáng" : "Chuyển giao diện tối"}
             style={{ background: "none", border: "none", fontSize: 16, color: "var(--slate)" }}
           >
-            {giaoDien === "dark" ? "☀️" : "🌙"}
+            {giaoDien === "dark" ? <IcSun size={17} /> : <IcMoon size={16} />}
           </button>
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
@@ -393,8 +394,11 @@ export default function Dashboard({ userName, email }: { userName: string; email
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span className="mono" style={{ fontSize: 10.5, color: "var(--amber)", textTransform: "uppercase", letterSpacing: "0.12em" }}>
-              ☀️ Điểm tin sáng
+            <span
+              className="mono"
+              style={{ fontSize: 10.5, color: "var(--amber)", textTransform: "uppercase", letterSpacing: "0.12em", display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <IcSun size={12} /> Điểm tin sáng
             </span>
             <button
               onClick={dongBrief}
@@ -535,8 +539,8 @@ export default function Dashboard({ userName, email }: { userName: string; email
             <div style={{ display: "flex", gap: 6 }}>
               {([
                 ["tat-ca", "Tất cả"],
-                ["work", "🏢 Cơ quan"],
-                ["personal", "🏠 Cá nhân"]
+                ["work", "Cơ quan"],
+                ["personal", "Cá nhân"]
               ] as const).map(([ma, ten]) => (
                 <button
                   key={ma}
@@ -602,7 +606,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
                 className="mono"
                 style={{ fontSize: 11.5, color: "var(--coral)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}
               >
-                ⚠ Quá hạn · {dsQuaHan.length}
+                Quá hạn · {dsQuaHan.length}
               </div>
               <TaskList
                 tasks={dsQuaHan}
@@ -676,10 +680,12 @@ export default function Dashboard({ userName, email }: { userName: string; email
       {/* Thanh điều hướng đáy */}
       <nav className="nav-day" aria-label="Điều hướng chính">
         <button onClick={() => setTab("homnay")} aria-current={tab === "homnay" ? "page" : undefined}>
-          ☀️ Hôm nay
+          <IcList size={17} />
+          Hôm nay
         </button>
         <button onClick={() => setTab("nhinlai")} aria-current={tab === "nhinlai" ? "page" : undefined}>
-          📊 Nhìn lại
+          <IcChart size={17} />
+          Nhìn lại
         </button>
       </nav>
 
@@ -691,7 +697,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
       {/* Nút nổi gọi trợ lý, thay cho ô nhập luôn chiếm màn hình chính */}
       {tab === "homnay" && !moBeIu && !focusTask && (
         <button className="fab-beiu" onClick={() => setMoBeIu(true)} aria-label={`Thêm việc với ${TEN_TRO_LY}`}>
-          ✨ {TEN_TRO_LY}
+          <IcSpark size={16} /> {TEN_TRO_LY}
         </button>
       )}
 
@@ -706,8 +712,8 @@ export default function Dashboard({ userName, email }: { userName: string; email
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={{ fontFamily: "var(--font-display)", fontSize: 17, color: "var(--cream)" }}>
-                ✨ {TEN_TRO_LY}
+              <span style={{ fontSize: 17, fontWeight: 600, color: "var(--cream)", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <IcSpark size={15} /> {TEN_TRO_LY}
               </span>
               <button
                 onClick={() => setMoBeIu(false)}

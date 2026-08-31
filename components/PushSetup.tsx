@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { IcBell, IcBellOff } from "./icons";
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -133,7 +134,7 @@ export default function PushSetup({ onThongBao }: { onThongBao?: (msg: string) =
         opacity: busy ? 0.5 : 1
       }}
     >
-      {busy ? <span className="spinner" aria-hidden="true" /> : daBat ? "🔔" : "🔕"}
+      {busy ? <span className="spinner" aria-hidden="true" /> : daBat ? <IcBell size={17} /> : <IcBellOff size={17} />}
     </button>
   );
 }

@@ -4,6 +4,7 @@ import NotesView from "./NotesView";
 import { demBuoc, themBuocVaoGhiChu } from "@/lib/checklist";
 import { docLoi, loiThanThien, rung } from "@/lib/client-api";
 import { TEN_TRO_LY } from "@/lib/branding";
+import { IcSpark, IcHome, IcCoQuan } from "./icons";
 
 export type Task = {
   id: string;
@@ -67,7 +68,7 @@ export default function TaskList({
     return (
       <div style={{ padding: "60px 20px", textAlign: "center", color: "var(--slate)" }}>
         <p style={{ fontSize: 20, fontWeight: 600, color: "var(--cream)" }}>Chưa có việc nào.</p>
-        <p>Bấm nút “✨ {TEN_TRO_LY}” ở góc dưới màn hình để thêm việc đầu tiên.</p>
+        <p>Bấm nút “{TEN_TRO_LY}” ở góc dưới màn hình để thêm việc đầu tiên.</p>
       </div>
     );
   }
@@ -184,7 +185,9 @@ function TaskRow({
             style={{ fontSize: 11, color: "var(--slate)", marginTop: 3, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}
           >
             <span style={{ color: nhom.color }}>{nhom.label}</span>
-            <span>{task.category === "work" ? "🏢" : "🏠"}</span>
+            <span title={task.category === "work" ? "Việc cơ quan" : "Việc cá nhân"} style={{ display: "inline-flex" }}>
+              {task.category === "work" ? <IcCoQuan size={12} /> : <IcHome size={12} />}
+            </span>
             {task.deadline && (
               <span style={{ color: overdue ? "var(--coral)" : "var(--slate)" }}>
                 {overdue ? "Quá hạn " : ""}
@@ -193,7 +196,7 @@ function TaskRow({
             )}
             {buoc.tong > 0 && (
               <span style={{ color: buoc.xong === buoc.tong ? "var(--teal)" : "var(--slate)" }}>
-                ☑ {buoc.xong}/{buoc.tong}
+                ✓ {buoc.xong}/{buoc.tong}
               </span>
             )}
             <span aria-hidden="true">{moRong ? "▴" : "▾"}</span>
@@ -304,7 +307,7 @@ function TaskRow({
                 style={{ ...nutNho, opacity: dangChia ? 0.6 : 1 }}
                 title={`Nhờ ${TEN_TRO_LY} chia việc này thành các bước`}
               >
-                {dangChia ? <span className="spinner" aria-hidden="true" /> : "✨"}{" "}
+                {dangChia ? <span className="spinner" aria-hidden="true" /> : <IcSpark size={12} />}{" "}
                 {dangChia ? "Đang chia…" : "Chia bước"}
               </button>
 

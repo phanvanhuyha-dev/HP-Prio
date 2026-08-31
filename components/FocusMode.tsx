@@ -5,6 +5,7 @@ import { demBuoc, themBuocVaoGhiChu } from "@/lib/checklist";
 import { TEN_TRO_LY } from "@/lib/branding";
 import NotesView from "./NotesView";
 import type { Task } from "./TaskList";
+import { IcSpark, IcCheckTron } from "./icons";
 
 // Phiên đang chạy, lưu vào localStorage để iOS có "giết" app giữa chừng
 // (chuyện thường với PWA) thì mở lại vẫn tiếp tục đúng chỗ. Đồng hồ tính theo
@@ -343,7 +344,9 @@ export default function FocusMode({
 
         {hetGio && !dangChay && (
           <div style={{ textAlign: "center", margin: "10px 0 26px" }}>
-            <p style={{ fontSize: 38, margin: 0 }}>🎉</p>
+            <p style={{ margin: 0, color: "var(--teal)" }}>
+              <IcCheckTron size={44} />
+            </p>
             <p style={{ fontSize: 17, color: "var(--cream)", fontWeight: 600, margin: "6px 0 0" }}>
               Xong phiên {phutVuaXong} phút
             </p>
@@ -404,8 +407,8 @@ export default function FocusMode({
                   opacity: dangChia ? 0.6 : 1
                 }}
               >
-                {dangChia && <span className="spinner" aria-hidden="true" />}
-                {dangChia ? "Đang chia bước…" : `✨ Chia bước với ${TEN_TRO_LY}`}
+                {dangChia ? <span className="spinner" aria-hidden="true" /> : <IcSpark size={13} />}
+                {dangChia ? "Đang chia bước…" : `Chia bước với ${TEN_TRO_LY}`}
               </button>
             </div>
           ) : null}
