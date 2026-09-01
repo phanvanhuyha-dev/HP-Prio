@@ -5,6 +5,7 @@ import { listTasks, isValidCategory, normalizeDeadline, type Task } from "@/lib/
 import { routerBeIu } from "@/lib/gemini";
 import { suKienSapToi, moTaLichChoAI } from "@/lib/calendar";
 import { describeDbError, describeGeminiError, loiJson } from "@/lib/diagnostics";
+import { doanViecTuCau } from "@/lib/ngay-viet";
 import { TEN_TRO_LY } from "@/lib/branding";
 
 // Gemini có lúc chậm, xem chú thích ở /api/parse.
@@ -70,11 +71,23 @@ export async function POST(req: Request) {
   } catch {}
 
   let kq;
+  let duPhong = false;
   try {
     kq = await routerBeIu(text.trim(), compact, lich);
   } catch (err) {
-    console.error("BeIu router error:", err);
-    return loiJson(describeGeminiError(err), "beiu");
+    console.error("BeIu router lỗi, chuyển sang lớp dự phòng:", err);
+    // AI hỏng (hết hạn mức, mất mạng, quá tải) thì KHÔNG chặn người dùng ghi
+    // việc. Đọc câu bằng luật và vẫn cho ra bản nháp để duyệt như thường.
+    // Chỉ làm được việc "thêm mới"; báo xong và sửa việc cần hiểu ngữ cảnh
+    // nên đành báo rõ là tạm chưa dùng được.
+    const m = describeGeminiError(err);
+    return NextResponse.json({
+      hanhDong: "them",
+      viec: doanViecTuCau(text.trim()),
+      duPhong: true,
+      ghiChu: `${TEN_TRO_LY} đang không gọi được AI nên tự đọc câu này bằng quy tắc. Anh kiểm lại giúp em, nhất là hạn chót.`,
+      khacPhuc: m.khacPhuc
+    });
   }
 
   if (kq.hanhDong === "them" || kq.hanhDong === "tra-loi") {

@@ -1,5 +1,6 @@
 import { listTasks, getBrief, saveBrief, ngayVNHomNay, type Task } from "./db";
 import { briefDaily } from "./gemini";
+import { briefTheoMau } from "./brief-mau";
 import { suKienSapToi, moTaLichChoAI } from "./calendar";
 
 const NGAY_NAM_IM = 14;
@@ -51,7 +52,19 @@ export async function layHoacTaoBrief(userEmail: string): Promise<string | null>
     lich = moTaLichChoAI((await suKienSapToi()).suKien);
   } catch {}
 
-  const brief = await briefDaily({ ...phanLoaiChoBrief(tasks), lich });
+  const duLieu = { ...phanLoaiChoBrief(tasks), lich };
+
+  // AI viết hay hơn, nhưng điểm tin là tấm lưới chống quên nên KHÔNG được
+  // vắng mặt chỉ vì Gemini hết hạn mức hay lỗi mạng. Hỏng thì dựng theo mẫu
+  // từ chính dữ liệu đã tính.
+  let brief: string;
+  try {
+    brief = await briefDaily(duLieu);
+  } catch (err) {
+    console.error("Brief AI lỗi, dùng bản theo mẫu:", (err as any)?.message ?? err);
+    brief = briefTheoMau(duLieu);
+  }
+
   await saveBrief(userEmail, ngay, brief);
   return brief;
 }

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useId, CSSProperties } from "react";
 import { docLoi, loiThanThien, ngayVN } from "@/lib/client-api";
 import { TEN_TRO_LY } from "@/lib/branding";
 import { IcSpark, IcMic, IcStop } from "./icons";
+import { doanViecTuCau } from "@/lib/ngay-viet";
 
 type ParsedTask = {
   title: string;
@@ -54,6 +55,9 @@ export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string)
   const [deXuat, setDeXuat] = useState<DeXuat | null>(null);
   const [traLoi, setTraLoi] = useState<string | null>(null);
   const [dungAI, setDungAI] = useState(true);
+  // Máy chủ báo đã phải dùng lớp dự phòng (AI hỏng), hiện cảnh báo để người
+  // dùng soi kỹ bản nháp hơn bình thường.
+  const [ghiChuDuPhong, setGhiChuDuPhong] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
   const abortRef = useRef<AbortController | null>(null);
   // Chốt chống gửi trùng: disabled chỉ có hiệu lực sau khi React render lại,
@@ -130,23 +134,17 @@ export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string)
     }
   }
 
-  // Bỏ qua AI: dựng sẵn bản nháp từ chính câu gõ, cho việc đơn giản như "họp"
+  // Bỏ qua AI: đọc câu bằng quy tắc ngay trên máy, đủ hiểu "3h chiều mai",
+  // "thứ 6", "15/9". Nhanh tức thì và không tốn lượt gọi AI nào.
   function boQuaAI() {
     const raw = text.trim();
     if (!raw) return;
     abortRef.current?.abort();
-    const dongDau = raw.split("\n")[0].trim();
     setDungAI(false);
     setError(null);
     setTraLoi(null);
-    setSuggestion({
-      title: (dongDau.length > 80 ? dongDau.slice(0, 80) : dongDau) || raw.slice(0, 80),
-      category: "work",
-      deadline: null,
-      urgent: false,
-      important: false,
-      reasoning: ""
-    });
+    setGhiChuDuPhong(null);
+    setSuggestion(doanViecTuCau(raw));
   }
 
   // Gửi câu nói cho trợ lý: có thể ra 1 trong 4 hành động
@@ -181,7 +179,8 @@ export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string)
       const kq = await res.json();
 
       if (kq.hanhDong === "them") {
-        setDungAI(true);
+        setDungAI(!kq.duPhong);
+        setGhiChuDuPhong(kq.duPhong ? (kq.ghiChu ?? null) : null);
         setSuggestion(kq.viec);
       } else if (kq.hanhDong === "xong") {
         setDeXuat({ loai: "xong", taskId: kq.taskId, tieuDe: kq.tieuDe });
@@ -285,6 +284,7 @@ export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string)
         original={text}
         suggestion={suggestion}
         dungAI={dungAI}
+        ghiChuDuPhong={ghiChuDuPhong}
         saving={loading}
         error={error}
         onConfirm={handleConfirm}
@@ -524,6 +524,7 @@ function ReviewCard({
   original,
   suggestion,
   dungAI,
+  ghiChuDuPhong,
   saving,
   error,
   onConfirm,
@@ -532,6 +533,7 @@ function ReviewCard({
   original: string;
   suggestion: ParsedTask;
   dungAI: boolean;
+  ghiChuDuPhong: string | null;
   saving: boolean;
   error: string | null;
   onConfirm: (final: DraftTask) => void;
@@ -552,8 +554,26 @@ function ReviewCard({
   return (
     <div style={{ background: "var(--navy-2)", border: "1px solid var(--amber)", borderRadius: 16, padding: 20 }}>
       <div className="mono" style={{ fontSize: 11, color: "var(--slate)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-        {dungAI ? `${TEN_TRO_LY} đề xuất, anh duyệt trước khi lưu` : "Anh tự điền, không dùng AI"}
+        {dungAI ? `${TEN_TRO_LY} đề xuất, anh duyệt trước khi lưu` : "Đọc bằng quy tắc, anh duyệt trước khi lưu"}
       </div>
+
+      {/* AI hỏng nên phải dùng lớp dự phòng: nói thẳng để anh soi kỹ hơn */}
+      {ghiChuDuPhong && (
+        <p
+          role="status"
+          style={{
+            fontSize: 12.5,
+            color: "var(--coral)",
+            background: "rgba(222, 121, 100, 0.1)",
+            border: "1px solid var(--coral)",
+            borderRadius: 8,
+            padding: "8px 10px",
+            margin: "0 0 10px"
+          }}
+        >
+          {ghiChuDuPhong}
+        </p>
+      )}
 
       <p style={{ fontSize: 13, color: "var(--slate)", fontStyle: "italic", margin: "0 0 4px" }}>
         “{trichDan}”
