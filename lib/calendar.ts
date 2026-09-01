@@ -1,6 +1,7 @@
 import ical from "node-ical";
 import { getIcsUrls } from "./db";
 import { kiemTraUrlIcs } from "./ics-url";
+import { taiIcs } from "./tai-ics";
 
 // Đọc lịch họp qua đường liên kết iCal bí mật (secret ICS link) mà cả Outlook
 // lẫn Google Calendar đều xuất được. Chọn cách này thay vì OAuth: một cơ chế
@@ -129,11 +130,11 @@ export async function suKienSapToi(userEmail: string): Promise<{ cauHinh: boolea
 
   for (const url of urls) {
     try {
-      // Outlook/Google có lúc chậm; một lịch treo không được giữ cả app
-      const duLieu = await Promise.race([
-        ical.async.fromURL(url),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000))
-      ]);
+      // Tải bằng taiIcs chứ không dùng ical.async.fromURL: fromURL đi theo
+      // chuyển hướng và phân giải tên bằng dns mặc định, tức là bỏ ngỏ đường
+      // vòng vào mạng nội bộ. taiIcs tự lo hạn giờ nên không cần race nữa.
+      const noiDung = await taiIcs(url);
+      const duLieu = await ical.async.parseICS(noiDung);
       tatCa.push(...bocSuKien(duLieu as any, tu, den));
     } catch (err) {
       console.error("ICS fetch error:", (err as any)?.message ?? err);

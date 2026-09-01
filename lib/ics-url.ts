@@ -5,11 +5,10 @@
 // trong mạng riêng hoặc endpoint metadata của nhà cung cấp đám mây và đọc
 // những thứ không thuộc về họ (kiểu tấn công SSRF).
 //
-// GIỚI HẠN ĐÃ BIẾT: node-ical đi theo chuyển hướng (redirect), nên một địa chỉ
-// công khai vẫn có thể chuyển tiếp tới địa chỉ nội bộ. Chặn ở tầng tên miền
-// như dưới đây loại được trường hợp trỏ thẳng, chưa loại được trỏ vòng. Khi
-// nào mở cho nhiều người dùng thật thì nên tải qua một proxy chỉ cho ra
-// Internet công cộng.
+// Đây mới là lớp chặn THỨ NHẤT, lọc theo tên miền. Nó không đủ một mình: tên
+// miền công khai vẫn có thể trỏ về IP nội bộ, hoặc chuyển hướng vòng vào
+// trong. Lớp thứ hai nằm ở lib/tai-ics.ts, kiểm lại từng chặng chuyển hướng
+// và kiểm địa chỉ IP thật ngay lúc mở kết nối. Sửa chỗ này thì xem cả chỗ đó.
 
 const HOST_CAM: RegExp[] = [
   /^localhost$/i,
