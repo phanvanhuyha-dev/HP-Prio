@@ -143,6 +143,29 @@ Lưu ý: liên kết này cho phép ĐỌC toàn bộ lịch của anh, giữ k�
 
 Biến môi trường `ICS_URLS` vẫn còn dùng được nhưng chỉ áp dụng cho tài khoản `OWNER_EMAIL` và chỉ khi tài khoản đó chưa dán liên kết nào trong app. Đây là đường lui cho bản đã cài từ trước, cấu hình trong app mới là chính.
 
+### 7.1. Khi công ty tắt xuất bản lịch: nối qua Microsoft Graph
+
+Nhiều công ty tắt Shared calendars ở cấp tenant, vào Outlook chỉ thấy dòng "Shared calendars are not supported for the selected account". Lúc đó không có liên kết ICS nào để lấy. Đường còn lại là để app đọc lịch qua Microsoft Graph với quyền **chỉ đọc**.
+
+Đây không phải cách đăng nhập vào app. App vẫn đăng nhập bằng Google, tài khoản Microsoft chỉ được nối thêm để đọc lịch.
+
+**Đăng ký ứng dụng** tại [entra.microsoft.com](https://entra.microsoft.com) > App registrations > New registration:
+- Name: `HPPrio`
+- Supported account types: chọn **Accounts in any organizational directory (Multitenant)**. Nếu công ty không cho anh đăng ký ứng dụng, đăng ký ở một tenant khác mà anh có quyền (tài khoản Microsoft cá nhân cũng tạo được thư mục miễn phí), rồi vẫn đăng nhập bằng tài khoản công ty ở bước cuối.
+- Redirect URI: chọn **Web**, điền `https://<domain-cua-anh>/api/ms/callback`
+
+Sau khi tạo xong:
+1. **Overview**: copy `Application (client) ID` thành `MS_CLIENT_ID`.
+2. **Certificates & secrets** > New client secret: copy cột **Value** (không phải Secret ID) thành `MS_CLIENT_SECRET`. Lưu ý bí mật này có hạn, tối đa 24 tháng, hết hạn thì lịch ngừng cập nhật và phải tạo cái mới.
+3. **API permissions** > Add a permission > Microsoft Graph > **Delegated permissions**: thêm `Calendars.Read` và `offline_access`.
+4. Thêm `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_TENANT=common` vào Vercel rồi Redeploy.
+
+**Nối tài khoản**: mở app > bánh răng Cài đặt > Nối tài khoản Microsoft > đăng nhập bằng tài khoản công ty.
+
+Nếu hiện thông báo cần quản trị viên phê duyệt, nghĩa là tenant của công ty chặn ứng dụng ngoài tự xin quyền. Anh cần nhờ IT duyệt quyền `Calendars.Read` cho ứng dụng này, hoặc quay lại dùng liên kết ICS ở mục trên nếu sau này công ty mở lại.
+
+Token được **mã hóa** trước khi cất vào database bằng khóa suy ra từ `NEXTAUTH_SECRET`, nên người có database mà không có biến môi trường thì không đọc được. Muốn thu hồi hẳn quyền phía Microsoft, vào [myapps.microsoft.com](https://myapps.microsoft.com), tìm HPPrio và gỡ.
+
 ## 8. Kiểm tra cấu hình khi có lỗi
 
 Đăng nhập vào app rồi mở đường dẫn `/api/health` trên domain của anh:

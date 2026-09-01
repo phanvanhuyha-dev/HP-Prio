@@ -586,6 +586,49 @@ export async function saveIcsUrls(userEmail: string, urls: string[]) {
   });
 }
 
+// --- Token lịch Microsoft ----------------------------------------------------
+
+export type BanGhiMs = {
+  refresh_token: string;
+  access_token: string | null;
+  het_han: Date | null;
+  ms_email: string | null;
+};
+
+export async function getMsToken(userEmail: string): Promise<BanGhiMs | null> {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<BanGhiMs>`
+      SELECT refresh_token, access_token, het_han, ms_email
+      FROM ms_calendar WHERE user_email = ${userEmail}
+    `;
+    return rows[0] ?? null;
+  });
+}
+
+export async function saveMsToken(
+  userEmail: string,
+  d: { refreshToken: string; accessToken: string; hetHan: Date; msEmail: string | null }
+) {
+  return chayVaTuSua(async () => {
+    await sql`
+      INSERT INTO ms_calendar (user_email, refresh_token, access_token, het_han, ms_email)
+      VALUES (${userEmail}, ${d.refreshToken}, ${d.accessToken}, ${d.hetHan.toISOString()}, ${d.msEmail})
+      ON CONFLICT (user_email) DO UPDATE SET
+        refresh_token = EXCLUDED.refresh_token,
+        access_token = EXCLUDED.access_token,
+        het_han = EXCLUDED.het_han,
+        ms_email = COALESCE(EXCLUDED.ms_email, ms_calendar.ms_email),
+        updated_at = now()
+    `;
+  });
+}
+
+export async function xoaMsToken(userEmail: string) {
+  return chayVaTuSua(async () => {
+    await sql`DELETE FROM ms_calendar WHERE user_email = ${userEmail}`;
+  });
+}
+
 export async function getBrief(userEmail: string, ngay: string) {
   return chayVaTuSua(async () => {
     const { rows } = await sql<{ noi_dung: string }>`
@@ -693,7 +736,7 @@ export async function checkSchema() {
     SELECT table_name AS bang, column_name AS cot
     FROM information_schema.columns
     WHERE table_schema = 'public'
-      AND table_name IN ('tasks', 'push_subscriptions', 'focus_sessions', 'daily_briefs', 'user_settings', 'reflections')
+      AND table_name IN ('tasks', 'push_subscriptions', 'focus_sessions', 'daily_briefs', 'user_settings', 'reflections', 'ms_calendar')
   `;
 
   const thucTe: Record<string, string[]> = {};

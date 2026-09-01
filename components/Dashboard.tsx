@@ -60,6 +60,22 @@ export default function Dashboard({ userName, email }: { userName: string; email
       setTenGoi(localStorage.getItem("hpprio-ten") ?? "");
       if (localStorage.getItem("hpprio-theme") === "light") setGiaoDien("light");
     } catch {}
+
+    // Quay về từ màn hình cấp quyền của Microsoft: báo kết quả rồi dọn sạch
+    // tham số khỏi thanh địa chỉ, để tải lại trang không hiện báo cũ.
+    const q = new URLSearchParams(window.location.search);
+    const ms = q.get("ms");
+    if (ms) {
+      const ghiChu = q.get("ghiChu") ?? "";
+      if (ms === "ok") {
+        setDaLuu(ghiChu || "Đã nối lịch Microsoft");
+        setTimeout(() => setDaLuu(null), 5000);
+        setLamMoiLich((v) => v + 1);
+      } else {
+        setError(ghiChu || "Không nối được lịch Microsoft");
+      }
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }, []);
 
   function doiGiaoDien() {

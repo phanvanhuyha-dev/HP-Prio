@@ -72,7 +72,27 @@ export default function CaiDat({
   const [dangTai, setDangTai] = useState(true);
   const [dangLuu, setDangLuu] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
+  const [ms, setMs] = useState<{ noi: boolean; msEmail: string | null; cauHinh: boolean } | null>(null);
   const hopRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch("/api/ms")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setMs(d))
+      .catch(() => {});
+  }, []);
+
+  async function ngatMicrosoft() {
+    if (!confirm("Ngắt kết nối lịch Microsoft?")) return;
+    try {
+      const res = await fetch("/api/ms", { method: "DELETE" });
+      if (!res.ok) throw new Error(await docLoi(res));
+      setMs((m) => (m ? { ...m, noi: false, msEmail: null } : m));
+      onThongBao("Đã ngắt lịch Microsoft");
+    } catch (e: any) {
+      setLoi(e.message ?? "Không ngắt được");
+    }
+  }
 
   useEffect(() => {
     fetch("/api/settings")
@@ -199,9 +219,74 @@ export default function CaiDat({
           </p>
         </section>
 
-        {/* --- Lịch họp --- */}
+        {/* --- Lịch Outlook công ty qua Microsoft --- */}
+        {ms?.cauHinh && (
+          <section style={{ marginBottom: 18 }}>
+            <NhanMuc icon={<IcLich size={12} />}>Lịch Outlook công ty</NhanMuc>
+            {ms.noi ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  background: "var(--field)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 10,
+                  padding: "11px 12px",
+                  minHeight: 44
+                }}
+              >
+                <span style={{ flex: 1, fontSize: 13.5, color: "var(--teal)", minWidth: 0, overflowWrap: "anywhere" }}>
+                  Đã nối {ms.msEmail ?? "tài khoản Microsoft"}
+                </span>
+                <button
+                  onClick={ngatMicrosoft}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid var(--line)",
+                    borderRadius: 8,
+                    padding: "7px 12px",
+                    fontSize: 12.5,
+                    minHeight: 38,
+                    color: "var(--coral)",
+                    flexShrink: 0
+                  }}
+                >
+                  Ngắt
+                </button>
+              </div>
+            ) : (
+              <>
+                <a
+                  href="/api/ms/connect"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "var(--field)",
+                    border: "1px solid var(--line)",
+                    borderRadius: 10,
+                    padding: "11px 12px",
+                    minHeight: 44,
+                    fontSize: 13.5,
+                    color: "var(--cream)",
+                    textDecoration: "none"
+                  }}
+                >
+                  Nối tài khoản Microsoft
+                </a>
+                <p style={{ fontSize: 12, lineHeight: 1.55, color: "var(--slate)", margin: "6px 0 0" }}>
+                  Dùng khi công ty tắt tính năng xuất bản lịch nên không lấy được liên kết ICS. App chỉ xin
+                  quyền đọc lịch, không xin quyền đọc thư hay ghi gì vào lịch.
+                </p>
+              </>
+            )}
+          </section>
+        )}
+
+        {/* --- Lịch họp qua liên kết ICS --- */}
         <section style={{ marginBottom: 18 }}>
-          <NhanMuc icon={<IcLich size={12} />}>Nối lịch họp</NhanMuc>
+          <NhanMuc icon={<IcLich size={12} />}>Nối lịch bằng liên kết</NhanMuc>
           <textarea
             value={lich}
             onChange={(e) => setLich(e.target.value)}

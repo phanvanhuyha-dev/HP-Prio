@@ -2,6 +2,7 @@ import ical from "node-ical";
 import { getIcsUrls } from "./db";
 import { kiemTraUrlIcs } from "./ics-url";
 import { taiIcs } from "./tai-ics";
+import { suKienMicrosoft, daNoiMicrosoft } from "./ms-lich";
 
 // Đọc lịch họp qua đường liên kết iCal bí mật (secret ICS link) mà cả Outlook
 // lẫn Google Calendar đều xuất được. Chọn cách này thay vì OAuth: một cơ chế
@@ -120,13 +121,23 @@ async function urlsCuaNguoi(userEmail: string): Promise<string[]> {
 
 export async function suKienSapToi(userEmail: string): Promise<{ cauHinh: boolean; suKien: SuKien[] }> {
   const urls = await urlsCuaNguoi(userEmail);
-  if (urls.length === 0) return { cauHinh: false, suKien: [] };
+  const { noi: coMicrosoft } = await daNoiMicrosoft(userEmail);
+  if (urls.length === 0 && !coMicrosoft) return { cauHinh: false, suKien: [] };
 
   const cu = dem.get(userEmail);
   if (cu && Date.now() - cu.luc < DEM_MS) return { cauHinh: true, suKien: cu.data };
 
   const { tu, den } = cuaSoHomNay();
   const tatCa: SuKien[] = [];
+
+  // Lịch Microsoft chạy song song với ICS, hỏng nguồn nào thì chỉ mất nguồn đó
+  if (coMicrosoft) {
+    try {
+      tatCa.push(...(await suKienMicrosoft(userEmail, tu, den)));
+    } catch (err) {
+      console.error("Đọc lịch Microsoft lỗi:", (err as any)?.message ?? err);
+    }
+  }
 
   for (const url of urls) {
     try {

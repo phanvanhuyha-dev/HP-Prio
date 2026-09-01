@@ -97,6 +97,19 @@ export const CAU_LENH_SCHEMA: string[] = [
   // lib/branding.ts, không lấp sẵn để đổi mặc định sau này còn tác dụng.
   `ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS ten_tro_ly TEXT`,
 
+  // Token đọc lịch Microsoft 365. Dùng khi công ty tắt tính năng xuất bản lịch
+  // (Shared calendars) nên không lấy được đường liên kết ICS.
+  // Hai cột token đều đã MÃ HÓA ở tầng ứng dụng, xem lib/ma-hoa.ts.
+  `CREATE TABLE IF NOT EXISTS ms_calendar (
+     user_email TEXT PRIMARY KEY,
+     refresh_token TEXT NOT NULL,
+     access_token TEXT,
+     het_han TIMESTAMPTZ,
+     ms_email TEXT,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+   )`,
+
   // Nhật ký nhìn lại cuối ngày: thành tựu nổi bật và điều cần cải thiện,
   // mỗi ngày một dòng, xem lại và tổng hợp theo tuần/tháng/quý/năm.
   `CREATE TABLE IF NOT EXISTS reflections (
@@ -136,7 +149,11 @@ export const COT_BAT_BUOC: Record<string, string[]> = {
   ],
   daily_briefs: ["user_email", "ngay", "noi_dung", "created_at"],
   user_settings: ["user_email", "ten_goi", "ics_urls", "ten_tro_ly", "updated_at"],
-  reflections: ["user_email", "ngay", "thanh_tuu", "cai_thien", "updated_at"]
+  reflections: ["user_email", "ngay", "thanh_tuu", "cai_thien", "updated_at"],
+  ms_calendar: [
+    "user_email", "refresh_token", "access_token", "het_han", "ms_email",
+    "created_at", "updated_at"
+  ]
 };
 
 // Mã lỗi Postgres cho "thiếu bảng" và "thiếu cột".
