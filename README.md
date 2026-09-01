@@ -8,13 +8,13 @@ Tính năng chính:
 - **Chế độ tập trung (deep work)**: bấm ▶ trên một việc, chọn 15/25/50 phút, màn hình chỉ còn việc đó cùng các bước; ghi lại tổng thời gian tập trung mỗi ngày. Lưu ý: nếu khóa máy giữa phiên, đồng hồ vẫn tính đúng nhưng không có chuông khi hết giờ (giới hạn của nền tảng web, cần Vercel Pro mới đặt được push theo phút).
 - **Chia bước bằng AI**: nút ✨ trên mỗi việc, AI đề xuất các bước dạng danh sách đánh dấu (checklist) trong ghi chú, bạn duyệt rồi lưu, tích dần từng bước kể cả trong lúc tập trung.
 
-**Kiến trúc:** Next.js (App Router) + Vercel Postgres + Gemini API — 100% serverless, deploy trên Vercel.
+**Kiến trúc:** Next.js (App Router) + Vercel Postgres + Gemini API, 100% serverless, deploy trên Vercel.
 
 ---
 
 ## 1. Chuẩn bị tài khoản (làm 1 lần)
 
-### 1.1. Google Cloud — OAuth + Gemini
+### 1.1. Google Cloud: OAuth + Gemini
 1. Vào https://console.cloud.google.com → tạo project mới (vd "HPPrio").
 2. Vào **APIs & Services > OAuth consent screen** → chọn "External" → điền tên app "HPPrio", email của anh → Save.
 3. Vào **APIs & Services > Credentials** → **Create Credentials > OAuth client ID** → chọn "Web application".
@@ -65,7 +65,7 @@ git push -u origin main
 2. **Trước khi bấm Deploy lần đầu**, vào tab **Storage** của project → **Create Database > Postgres** → đặt tên bất kỳ → Vercel tự động thêm các biến `POSTGRES_URL`... vào project.
 3. Vào **Settings > Environment Variables**, thêm các biến còn lại (copy từ `.env.example`, điền giá trị thật):
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-   - `OWNER_EMAIL` (email Gmail của anh — chỉ email này được phép đăng nhập)
+   - `OWNER_EMAIL` (email Gmail của anh, chỉ email này được phép đăng nhập)
    - `NEXTAUTH_SECRET` (chạy `openssl rand -base64 32` để tạo)
    - `NEXTAUTH_URL` → điền `https://<tên-app>.vercel.app`. Nếu chưa biết domain thì **đừng tạo biến này**, cứ để deploy xong rồi thêm sau. Tạo biến mà bỏ trống giá trị là bản build sẽ hỏng (xem mục 7).
    - `GEMINI_API_KEY`
@@ -106,7 +106,7 @@ git push -u origin main
 
 ## 5. Cài lên iPhone như app thật (PWA)
 
-1. Mở domain HPPrio bằng **Safari** trên iPhone (không phải Chrome — Add to Home Screen của PWA hoạt động ổn định nhất trên Safari iOS).
+1. Mở domain HPPrio bằng **Safari** trên iPhone (không phải Chrome, vì Add to Home Screen của PWA hoạt động ổn định nhất trên Safari iOS).
 2. Bấm nút **Share** (biểu tượng mũi tên đi lên) → **Add to Home Screen**.
 3. Mở app từ icon vừa tạo → bấm **Bật nhắc deadline** trong app để kích hoạt Web Push.
 
@@ -137,7 +137,11 @@ Cách lấy liên kết:
 - **Google Calendar**: Cài đặt > chọn lịch > "Tích hợp lịch" > **Địa chỉ bí mật ở định dạng iCal**.
 - **Outlook** (web): Cài đặt > Lịch > Lịch dùng chung > **Xuất bản lịch** > chọn lịch, quyền "Có thể xem mọi chi tiết" > copy liên kết **ICS**.
 
-Dán vào biến môi trường `ICS_URLS` trên Vercel, nhiều lịch cách nhau bằng dấu phẩy, rồi Redeploy. Lưu ý: liên kết này cho phép ĐỌC toàn bộ lịch của anh, giữ kín như mật khẩu; lộ thì vào đúng trang cài đặt trên để đặt lại (reset) liên kết. Lịch có bộ đệm khoảng 10 phút nên thay đổi mới không hiện tức thì.
+Dán liên kết **ngay trong app**: bấm nút tờ lịch ở góc trên bên phải, mỗi lịch một dòng, tối đa 5 lịch, rồi bấm Lưu. Không cần vào Vercel, không cần Redeploy, và liên kết được lưu theo từng tài khoản nên thêm người dùng khác cũng không ai thấy lịch của ai.
+
+Lưu ý: liên kết này cho phép ĐỌC toàn bộ lịch của anh, giữ kín như mật khẩu; lộ thì vào đúng trang cài đặt trên để đặt lại (reset) liên kết. App chỉ nhận liên kết `https` và từ chối các địa chỉ nội bộ. Lịch có bộ đệm khoảng 10 phút, nhưng vừa bấm Lưu là bộ đệm được dọn nên lịch mới hiện ngay.
+
+Biến môi trường `ICS_URLS` vẫn còn dùng được nhưng chỉ áp dụng cho tài khoản `OWNER_EMAIL` và chỉ khi tài khoản đó chưa dán liên kết nào trong app. Đây là đường lui cho bản đã cài từ trước, cấu hình trong app mới là chính.
 
 ## 8. Kiểm tra cấu hình khi có lỗi
 
@@ -213,4 +217,4 @@ public/                    → manifest.json, service worker (sw.js), icons
 - Không có native iOS app (dùng PWA)
 - Không tích hợp Google Calendar
 - Không có thống kê xu hướng dài hạn
-- Deadline chỉ được AI điền khi đủ chắc chắn — nếu mơ hồ, để trống và cần anh tự nhập tay khi duyệt
+- Deadline chỉ được AI điền khi đủ chắc chắn: nếu mơ hồ, để trống và cần anh tự nhập tay khi duyệt

@@ -1,11 +1,37 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { saveTenGoi } from "@/lib/db";
+import { saveTenGoi, getTenGoi, getIcsUrls, saveIcsUrls } from "@/lib/db";
+import { tachDanhSachIcs, cheUrlIcs, TOI_DA_LICH } from "@/lib/ics-url";
+import { xoaDemLich } from "@/lib/calendar";
 import { describeDbError, loiJson } from "@/lib/diagnostics";
 
-// Cập nhật tên gọi hiển thị trong lời chào. Lưu máy chủ để mọi thiết bị
+export const dynamic = "force-dynamic";
+
+// Cấu hình của riêng người đang đăng nhập. Lưu máy chủ để mọi thiết bị
 // (web, iPhone) cùng thấy, thay vì localStorage theo từng máy như trước.
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  try {
+    const [tenGoi, urls] = await Promise.all([
+      getTenGoi(session.user.email),
+      getIcsUrls(session.user.email)
+    ]);
+    return NextResponse.json({
+      tenGoi,
+      // Trả về nguyên liên kết để người dùng sửa được, kèm bản che sẵn để
+      // giao diện hiện ra màn hình mà không phơi phần bí mật.
+      icsUrls: urls,
+      icsChe: urls.map(cheUrlIcs)
+    });
+  } catch (err) {
+    return loiJson(describeDbError(err), "settings");
+  }
+}
+
 export async function PATCH(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
@@ -18,16 +44,70 @@ export async function PATCH(req: Request) {
   } catch {
     return NextResponse.json({ error: "Dữ liệu gửi lên không hợp lệ" }, { status: 400 });
   }
-
-  if (body?.tenGoi !== undefined && body.tenGoi !== null && typeof body.tenGoi !== "string") {
-    return NextResponse.json({ error: "Tên gọi không hợp lệ" }, { status: 400 });
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Dữ liệu gửi lên không hợp lệ" }, { status: 400 });
   }
-  const ten = typeof body?.tenGoi === "string" ? body.tenGoi.trim().slice(0, 40) : "";
 
-  try {
-    await saveTenGoi(session.user.email, ten || null);
-    return NextResponse.json({ ok: true, tenGoi: ten || null });
-  } catch (err) {
-    return loiJson(describeDbError(err), "settings");
+  // Chỉ đụng vào trường nào thực sự được gửi lên. Bản trước mặc định coi
+  // tenGoi vắng mặt là chuỗi rỗng, nên một gói tin chỉ đổi lịch sẽ xóa mất tên.
+  const doiTen = "tenGoi" in body;
+  const doiLich = "icsUrls" in body;
+  if (!doiTen && !doiLich) {
+    return NextResponse.json({ error: "Không có gì để cập nhật" }, { status: 400 });
   }
+
+  const ketQua: Record<string, unknown> = { ok: true };
+
+  if (doiTen) {
+    if (body.tenGoi !== null && typeof body.tenGoi !== "string") {
+      return NextResponse.json({ error: "Tên gọi không hợp lệ" }, { status: 400 });
+    }
+    const ten = typeof body.tenGoi === "string" ? body.tenGoi.trim().slice(0, 40) : "";
+    try {
+      await saveTenGoi(session.user.email, ten || null);
+      ketQua.tenGoi = ten || null;
+    } catch (err) {
+      return loiJson(describeDbError(err), "settings");
+    }
+  }
+
+  if (doiLich) {
+    // Nhận cả chuỗi nhiều dòng lẫn mảng, người dùng thường dán thẳng
+    const tho = Array.isArray(body.icsUrls)
+      ? body.icsUrls.filter((u: unknown) => typeof u === "string").join("\n")
+      : typeof body.icsUrls === "string"
+        ? body.icsUrls
+        : null;
+    if (tho === null) {
+      return NextResponse.json({ error: "Liên kết lịch không hợp lệ" }, { status: 400 });
+    }
+    if (tho.length > 3000) {
+      return NextResponse.json({ error: "Danh sách lịch quá dài" }, { status: 400 });
+    }
+
+    const { hopLe, loi } = tachDanhSachIcs(tho);
+    // Có dòng sai thì KHÔNG lưu nửa vời, báo rõ dòng nào sai để sửa
+    if (loi.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Có ${loi.length} liên kết không dùng được`,
+          khacPhuc: loi.join(" | "),
+          maxLich: TOI_DA_LICH
+        },
+        { status: 400 }
+      );
+    }
+
+    try {
+      await saveIcsUrls(session.user.email, hopLe);
+      // Bỏ bộ đệm để lịch mới hiện ngay, không đợi hết 10 phút
+      xoaDemLich(session.user.email);
+      ketQua.icsUrls = hopLe;
+      ketQua.icsChe = hopLe.map(cheUrlIcs);
+    } catch (err) {
+      return loiJson(describeDbError(err), "settings");
+    }
+  }
+
+  return NextResponse.json(ketQua);
 }

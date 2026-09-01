@@ -43,6 +43,14 @@ export const IcBell = ({ size = 16, style }: P) => (
   </svg>
 );
 
+// Tờ lịch: mở khu nối lịch họp
+export const IcLich = ({ size = 16, style }: P) => (
+  <svg {...goc(size, style)}>
+    <rect x="3.2" y="5" width="17.6" height="15.5" rx="2.5" />
+    <path d="M3.2 9.6h17.6M8.2 3.5v3M15.8 3.5v3" />
+  </svg>
+);
+
 export const IcBellOff = ({ size = 16, style }: P) => (
   <svg {...goc(size, style)}>
     <path d="M18 16H6c1.2-1.4 1.5-2.7 1.5-5 0-.7.1-1.3.4-1.9M9.6 4.4A4.5 4.5 0 0116.5 11c0 2.3.3 3.6 1.5 5" />

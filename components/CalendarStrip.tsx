@@ -12,22 +12,28 @@ function gioVN(iso: string) {
 // Dải lịch họp hôm nay phía trên danh sách việc, kiểu SCHEDULE trong ảnh mẫu:
 // chấm màu + giờ + tên cuộc họp. Chưa cấu hình ICS_URLS hoặc hôm nay trống
 // lịch thì không chiếm một pixel nào.
-export default function CalendarStrip() {
+export default function CalendarStrip({ lamMoi = 0 }: { lamMoi?: number }) {
   const [suKien, setSuKien] = useState<SuKien[]>([]);
 
+  // lamMoi tăng lên mỗi lần người dùng lưu liên kết lịch mới, để dải lịch
+  // hiện ngay thay vì đợi lần mở app sau.
   useEffect(() => {
     fetch("/api/calendar")
       .then(async (r) => {
         if (!r.ok) return;
         const d = await r.json();
-        if (!d.cauHinh) return;
+        // Gỡ hết liên kết thì phải dọn luôn lịch đang hiện, không giữ bản cũ
+        if (!d.cauHinh) {
+          setSuKien([]);
+          return;
+        }
         // Chỉ hiện lịch HÔM NAY theo giờ Việt Nam
         const t7 = Date.now() + 7 * 3600e3;
         const cuoiNgay = Math.floor(t7 / 86400000) * 86400000 + 86400000 - 7 * 3600e3;
         setSuKien((d.suKien ?? []).filter((s: SuKien) => new Date(s.batDau).getTime() < cuoiNgay));
       })
       .catch(() => {});
-  }, []);
+  }, [lamMoi]);
 
   if (suKien.length === 0) return null;
 

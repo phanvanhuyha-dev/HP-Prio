@@ -67,7 +67,7 @@ export async function POST(req: Request) {
   // Lịch họp là ngữ cảnh phụ: lỗi thì bỏ qua, không chặn trợ lý
   let lich = "";
   try {
-    lich = moTaLichChoAI((await suKienSapToi()).suKien);
+    lich = moTaLichChoAI((await suKienSapToi(session.user.email)).suKien);
   } catch {}
 
   let kq;

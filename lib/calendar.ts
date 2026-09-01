@@ -1,10 +1,14 @@
 import ical from "node-ical";
+import { getIcsUrls } from "./db";
+import { kiemTraUrlIcs } from "./ics-url";
 
 // Đọc lịch họp qua đường liên kết iCal bí mật (secret ICS link) mà cả Outlook
 // lẫn Google Calendar đều xuất được. Chọn cách này thay vì OAuth: một cơ chế
 // chạy cho cả hai nhà cung cấp, chỉ đọc, không xin thêm quyền nào.
 //
-// Cấu hình: biến môi trường ICS_URLS, nhiều lịch cách nhau bằng dấu phẩy.
+// Cấu hình: mỗi người tự dán liên kết trong app, lưu ở user_settings.ics_urls.
+// Biến môi trường ICS_URLS vẫn được đọc nhưng CHỈ cho chủ sở hữu (OWNER_EMAIL),
+// để bản đã cài từ trước không mất lịch. Không dùng chung cho tài khoản khác.
 
 export type SuKien = {
   tieuDe: string;
@@ -15,8 +19,13 @@ export type SuKien = {
 
 // Bộ đệm trong bộ nhớ của instance serverless: lịch họp không cần tươi từng
 // giây, đỡ gọi Outlook/Google mỗi lần mở app.
-let dem: { luc: number; data: SuKien[] } | null = null;
+//
+// PHẢI khóa theo email. Bản trước dùng một biến chung cho cả tiến trình, nên
+// dù có đọc đúng liên kết của từng người thì người vào sau vẫn nhận lịch của
+// người vào trước còn trong bộ đệm.
+const dem = new Map<string, { luc: number; data: SuKien[] }>();
 const DEM_MS = 10 * 60 * 1000;
+const DEM_TOI_DA = 200;
 
 function cuaSoHomNay() {
   // Từ 0h hôm nay đến 24h ngày mai theo giờ Việt Nam (+7, không có giờ mùa hè)
@@ -77,14 +86,43 @@ export function bocSuKien(duLieu: Record<string, any>, tu: Date, den: Date): SuK
   return kq.sort((a, b) => a.batDau.localeCompare(b.batDau)).slice(0, 30);
 }
 
-export async function suKienSapToi(): Promise<{ cauHinh: boolean; suKien: SuKien[] }> {
-  const urls = (process.env.ICS_URLS ?? "")
-    .split(",")
-    .map((u) => u.trim())
-    .filter(Boolean);
+// Liên kết lịch của riêng một người. Ưu tiên bản người đó tự dán trong app;
+// chỉ khi người đó là chủ sở hữu mới ngó tới biến môi trường cũ.
+async function urlsCuaNguoi(userEmail: string): Promise<string[]> {
+  let urls: string[] = [];
+  try {
+    urls = await getIcsUrls(userEmail);
+  } catch (err) {
+    console.error("Đọc ics_urls lỗi:", (err as any)?.message ?? err);
+  }
+
+  if (urls.length === 0) {
+    const owner = (process.env.OWNER_EMAIL ?? "").trim().toLowerCase();
+    if (owner && owner === userEmail.trim().toLowerCase()) {
+      urls = (process.env.ICS_URLS ?? "")
+        .split(",")
+        .map((u) => u.trim())
+        .filter(Boolean);
+    }
+  }
+
+  // Kiểm lại ngay trước khi tải, không chỉ lúc lưu: dữ liệu cũ trong database
+  // và biến môi trường chưa từng đi qua bộ kiểm tra nào.
+  const sach: string[] = [];
+  for (const u of urls) {
+    const kq = kiemTraUrlIcs(u);
+    if (kq.ok) sach.push(kq.url);
+    else console.error("Bỏ qua liên kết lịch không hợp lệ:", kq.loi);
+  }
+  return sach;
+}
+
+export async function suKienSapToi(userEmail: string): Promise<{ cauHinh: boolean; suKien: SuKien[] }> {
+  const urls = await urlsCuaNguoi(userEmail);
   if (urls.length === 0) return { cauHinh: false, suKien: [] };
 
-  if (dem && Date.now() - dem.luc < DEM_MS) return { cauHinh: true, suKien: dem.data };
+  const cu = dem.get(userEmail);
+  if (cu && Date.now() - cu.luc < DEM_MS) return { cauHinh: true, suKien: cu.data };
 
   const { tu, den } = cuaSoHomNay();
   const tatCa: SuKien[] = [];
@@ -103,8 +141,15 @@ export async function suKienSapToi(): Promise<{ cauHinh: boolean; suKien: SuKien
   }
 
   const data = tatCa.sort((a, b) => a.batDau.localeCompare(b.batDau)).slice(0, 30);
-  dem = { luc: Date.now(), data };
+  // Chặn trần để một instance sống lâu không phình bộ nhớ vì nhiều tài khoản
+  if (dem.size >= DEM_TOI_DA) dem.clear();
+  dem.set(userEmail, { luc: Date.now(), data });
   return { cauHinh: true, suKien: data };
+}
+
+// Người dùng vừa đổi liên kết thì phải thấy lịch mới ngay, không đợi hết 10 phút
+export function xoaDemLich(userEmail: string) {
+  dem.delete(userEmail);
 }
 
 // Dòng mô tả lịch hôm nay cho prompt của Bé iu và điểm tin sáng.

@@ -88,6 +88,11 @@ export const CAU_LENH_SCHEMA: string[] = [
      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
 
+  // Liên kết lịch ICS của RIÊNG từng người, nhiều lịch ngăn bằng xuống dòng.
+  // Trước đây đọc từ biến môi trường ICS_URLS dùng chung cho cả ứng dụng, nên
+  // thêm tài khoản thứ hai là người đó thấy nguyên lịch họp của người thứ nhất.
+  `ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS ics_urls TEXT`,
+
   // Nhật ký nhìn lại cuối ngày: thành tựu nổi bật và điều cần cải thiện,
   // mỗi ngày một dòng, xem lại và tổng hợp theo tuần/tháng/quý/năm.
   `CREATE TABLE IF NOT EXISTS reflections (
@@ -126,7 +131,7 @@ export const COT_BAT_BUOC: Record<string, string[]> = {
     "started_at", "ended_at", "seconds"
   ],
   daily_briefs: ["user_email", "ngay", "noi_dung", "created_at"],
-  user_settings: ["user_email", "ten_goi", "updated_at"],
+  user_settings: ["user_email", "ten_goi", "ics_urls", "updated_at"],
   reflections: ["user_email", "ngay", "thanh_tuu", "cai_thien", "updated_at"]
 };
 

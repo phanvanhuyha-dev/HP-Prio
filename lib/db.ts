@@ -498,6 +498,30 @@ export async function saveTenGoi(userEmail: string, ten: string | null) {
   });
 }
 
+// Liên kết lịch ICS của riêng người này, mỗi dòng một lịch.
+export async function getIcsUrls(userEmail: string): Promise<string[]> {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<{ ics_urls: string | null }>`
+      SELECT ics_urls FROM user_settings WHERE user_email = ${userEmail}
+    `;
+    return (rows[0]?.ics_urls ?? "")
+      .split("\n")
+      .map((u) => u.trim())
+      .filter(Boolean);
+  });
+}
+
+export async function saveIcsUrls(userEmail: string, urls: string[]) {
+  const gop = urls.join("\n") || null;
+  return chayVaTuSua(async () => {
+    await sql`
+      INSERT INTO user_settings (user_email, ics_urls)
+      VALUES (${userEmail}, ${gop})
+      ON CONFLICT (user_email) DO UPDATE SET ics_urls = EXCLUDED.ics_urls, updated_at = now()
+    `;
+  });
+}
+
 export async function getBrief(userEmail: string, ngay: string) {
   return chayVaTuSua(async () => {
     const { rows } = await sql<{ noi_dung: string }>`

@@ -49,7 +49,7 @@ export async function layHoacTaoBrief(userEmail: string): Promise<string | null>
   // Lịch họp là ngữ cảnh phụ, lỗi thì bỏ qua
   let lich = "";
   try {
-    lich = moTaLichChoAI((await suKienSapToi()).suKien);
+    lich = moTaLichChoAI((await suKienSapToi(userEmail)).suKien);
   } catch {}
 
   const duLieu = { ...phanLoaiChoBrief(tasks), lich };

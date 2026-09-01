@@ -13,7 +13,8 @@ import MiniFocusBar from "./MiniFocusBar";
 import NhinLai from "./NhinLai";
 import CalendarStrip from "./CalendarStrip";
 import ReflectionLog from "./ReflectionLog";
-import { IcSpark, IcSun, IcMoon, IcList, IcChart, IcPen, IcJournal } from "./icons";
+import CalendarSettings from "./CalendarSettings";
+import { IcSpark, IcSun, IcMoon, IcList, IcChart, IcPen, IcJournal, IcLich } from "./icons";
 
 const THU_VN = ["CHỦ NHẬT", "THỨ HAI", "THỨ BA", "THỨ TƯ", "THỨ NĂM", "THỨ SÁU", "THỨ BẢY"];
 
@@ -51,6 +52,9 @@ export default function Dashboard({ userName, email }: { userName: string; email
   // Đổi tên ngay tại lời chào bằng cây bút, không cần khu hồ sơ riêng
   const [suaTen, setSuaTen] = useState(false);
   const [nhapTen, setNhapTen] = useState("");
+  // Khu nối lịch họp: đóng lại thì không chiếm pixel nào
+  const [moLich, setMoLich] = useState(false);
+  const [lamMoiLich, setLamMoiLich] = useState(0);
   useEffect(() => {
     const d = new Date();
     const p = (n: number) => String(n).padStart(2, "0");
@@ -466,7 +470,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
           )}
         </div>
 
-        {/* Cụm nút gọn: chuông nhắc, đổi giao diện, đăng xuất */}
+        {/* Cụm nút gọn: chuông nhắc, nối lịch, đổi giao diện, đăng xuất */}
         <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
           <PushSetup
             onThongBao={(m) => {
@@ -474,6 +478,19 @@ export default function Dashboard({ userName, email }: { userName: string; email
               setTimeout(() => setDaLuu(null), 4000);
             }}
           />
+          <button
+            onClick={() => {
+              setTab("homnay");
+              setMoLich((v) => !v);
+            }}
+            className="tap"
+            aria-label="Nối lịch họp"
+            aria-expanded={moLich}
+            title="Nối lịch họp"
+            style={{ background: "none", border: "none", color: "var(--slate)", padding: "0 2px" }}
+          >
+            <IcLich size={16} />
+          </button>
           <button
             onClick={doiGiaoDien}
             className="tap"
@@ -531,8 +548,20 @@ export default function Dashboard({ userName, email }: { userName: string; email
         </div>
       )}
 
+      {/* Khu nối lịch, mở bằng nút tờ lịch trên đầu trang */}
+      {moLich && (
+        <CalendarSettings
+          onDong={() => setMoLich(false)}
+          onLuuXong={(m) => {
+            setLamMoiLich((v) => v + 1);
+            setDaLuu(m);
+            setTimeout(() => setDaLuu(null), 4000);
+          }}
+        />
+      )}
+
       {/* Lịch họp hôm nay (Outlook + Google qua ICS), tự ẩn khi trống */}
-      <CalendarStrip />
+      <CalendarStrip lamMoi={lamMoiLich} />
 
       {/* Mọi thông báo tạm thời gom về MỘT khu cố định ở đáy màn hình.
           Trước đây "Đã lưu" nằm đầu trang còn "Hoàn tác" nằm đáy, mắt phải
