@@ -88,6 +88,17 @@ export const CAU_LENH_SCHEMA: string[] = [
      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
 
+  // Nhật ký nhìn lại cuối ngày: thành tựu nổi bật và điều cần cải thiện,
+  // mỗi ngày một dòng, xem lại và tổng hợp theo tuần/tháng/quý/năm.
+  `CREATE TABLE IF NOT EXISTS reflections (
+     user_email TEXT NOT NULL,
+     ngay DATE NOT NULL,
+     thanh_tuu TEXT,
+     cai_thien TEXT,
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     PRIMARY KEY (user_email, ngay)
+   )`,
+
   // Điểm tin sáng do Bé iu viết, mỗi ngày một bản. Lưu lại để cron gửi push
   // xong thì mở app vẫn đọc được, và ai gọi trước thì người sau dùng bản cache
   // thay vì đốt thêm một lượt AI.
@@ -115,7 +126,8 @@ export const COT_BAT_BUOC: Record<string, string[]> = {
     "started_at", "ended_at", "seconds"
   ],
   daily_briefs: ["user_email", "ngay", "noi_dung", "created_at"],
-  user_settings: ["user_email", "ten_goi", "updated_at"]
+  user_settings: ["user_email", "ten_goi", "updated_at"],
+  reflections: ["user_email", "ngay", "thanh_tuu", "cai_thien", "updated_at"]
 };
 
 // Mã lỗi Postgres cho "thiếu bảng" và "thiếu cột".

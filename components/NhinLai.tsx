@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { docLoi, loiThanThien } from "@/lib/client-api";
 import { TEN_TRO_LY } from "@/lib/branding";
-import ProfilePanel from "./ProfilePanel";
+import ReflectionLog from "./ReflectionLog";
 import { IcSpark } from "./icons";
 
 type ThongKe = {
@@ -26,17 +26,10 @@ function baNgayGanDay(): { ngay: string; nhan: string }[] {
   return kq;
 }
 
-// Tab "Nhìn lại": thống kê tuần và hồ sơ, tách khỏi màn hình chính để không
-// ảnh hưởng tính năng hàng ngày.
-export default function NhinLai({
-  email,
-  ten,
-  onDoiTen
-}: {
-  email: string;
-  ten: string;
-  onDoiTen: (t: string) => void;
-}) {
+// Tab "Nhìn lại": thống kê tuần và nhật ký cuối ngày, tách khỏi màn hình chính
+// để không ảnh hưởng tính năng hàng ngày. (Đổi tên gọi nay nằm ngay cạnh lời
+// chào ở đầu trang, không cần khu hồ sơ riêng nữa.)
+export default function NhinLai({ email }: { email: string }) {
   const [tk, setTk] = useState<ThongKe | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tomTat, setTomTat] = useState<string | null>(null);
@@ -190,7 +183,11 @@ export default function NhinLai({
         </div>
       )}
 
-      <ProfilePanel email={email} ten={ten} onDoiTen={onDoiTen} />
+      <ReflectionLog />
+
+      <p className="mono" style={{ fontSize: 11, color: "var(--slate)", textAlign: "center", marginTop: 28 }}>
+        Đăng nhập bằng {email}
+      </p>
     </div>
   );
 }

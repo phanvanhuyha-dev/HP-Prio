@@ -12,7 +12,7 @@ import FocusMode, { docPhienDangDo, xoaPhienDangDo, type PhienTapTrung } from ".
 import MiniFocusBar from "./MiniFocusBar";
 import NhinLai from "./NhinLai";
 import CalendarStrip from "./CalendarStrip";
-import { IcSpark, IcSun, IcMoon, IcList, IcChart } from "./icons";
+import { IcSpark, IcSun, IcMoon, IcList, IcChart, IcPen } from "./icons";
 
 const THU_VN = ["CHỦ NHẬT", "THỨ HAI", "THỨ BA", "THỨ TƯ", "THỨ NĂM", "THỨ SÁU", "THỨ BẢY"];
 
@@ -46,6 +46,9 @@ export default function Dashboard({ userName, email }: { userName: string; email
   const [ngayHomNay, setNgayHomNay] = useState("");
   const [tenGoi, setTenGoi] = useState("");
   const [giaoDien, setGiaoDien] = useState<"dark" | "light">("dark");
+  // Đổi tên ngay tại lời chào bằng cây bút, không cần khu hồ sơ riêng
+  const [suaTen, setSuaTen] = useState(false);
+  const [nhapTen, setNhapTen] = useState("");
   useEffect(() => {
     const d = new Date();
     const p = (n: number) => String(n).padStart(2, "0");
@@ -385,9 +388,69 @@ export default function Dashboard({ userName, email }: { userName: string; email
           <div className="mono" style={{ fontSize: 11, color: "var(--slate)", letterSpacing: "0.14em", minHeight: 15 }}>
             {ngayHomNay}
           </div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em", margin: "4px 0 0", color: "var(--cream)", lineHeight: 1.25 }}>
-            Chào {tenGoi || userName.split(" ")[0] || userName}.
-          </h1>
+          {suaTen ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "4px 0 0" }}>
+              <input
+                value={nhapTen}
+                autoFocus
+                onChange={(e) => setNhapTen(e.target.value.slice(0, 40))}
+                onBlur={() => {
+                  setSuaTen(false);
+                  const ten = nhapTen.trim();
+                  if (ten !== (tenGoi || "")) doiTenGoi(ten);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  if (e.key === "Escape") {
+                    setNhapTen(tenGoi);
+                    setSuaTen(false);
+                  }
+                }}
+                aria-label="Tên gọi của anh"
+                placeholder="Tên anh muốn được gọi"
+                style={{
+                  fontSize: 22,
+                  fontWeight: 700,
+                  fontFamily: "var(--font-body)",
+                  background: "var(--field)",
+                  border: "1px solid var(--amber)",
+                  borderRadius: 10,
+                  padding: "6px 12px",
+                  color: "var(--cream)",
+                  minWidth: 0,
+                  width: "min(280px, 100%)"
+                }}
+              />
+            </div>
+          ) : (
+            <h1
+              style={{
+                fontSize: 26,
+                fontWeight: 700,
+                letterSpacing: "-0.01em",
+                margin: "4px 0 0",
+                color: "var(--cream)",
+                lineHeight: 1.25,
+                display: "flex",
+                alignItems: "center",
+                gap: 4
+              }}
+            >
+              Chào {tenGoi || userName.split(" ")[0] || userName}.
+              <button
+                onClick={() => {
+                  setNhapTen(tenGoi || userName.split(" ")[0] || "");
+                  setSuaTen(true);
+                }}
+                className="tap"
+                aria-label="Đổi tên gọi"
+                title="Đổi tên gọi"
+                style={{ background: "none", border: "none", color: "var(--slate)", margin: "-10px 0" }}
+              >
+                <IcPen size={14} />
+              </button>
+            </h1>
+          )}
           {!loading && (
             <p style={{ fontSize: 14, color: soQuaHan > 0 ? "var(--coral)" : "var(--slate)", margin: "4px 0 0" }}>
               {soQuaHan > 0
@@ -725,8 +788,8 @@ export default function Dashboard({ userName, email }: { userName: string; email
       </>
       )}
 
-      {/* Tab Nhìn lại: thống kê tuần và hồ sơ */}
-      {tab === "nhinlai" && <NhinLai email={email} ten={tenGoi} onDoiTen={doiTenGoi} />}
+      {/* Tab Nhìn lại: thống kê tuần và nhật ký cuối ngày */}
+      {tab === "nhinlai" && <NhinLai email={email} />}
 
       {/* Thanh điều hướng đáy */}
       <nav className="nav-day" aria-label="Điều hướng chính">

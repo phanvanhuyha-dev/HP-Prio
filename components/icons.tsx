@@ -111,6 +111,14 @@ export const IcCoQuan = ({ size = 16, style }: P) => (
   </svg>
 );
 
+// Đổi tên gọi ngay tại lời chào
+export const IcPen = ({ size = 16, style }: P) => (
+  <svg {...goc(size, style)}>
+    <path d="M14.5 4.5l5 5L8 21H3v-5L14.5 4.5z" />
+    <path d="M12.5 6.5l5 5" />
+  </svg>
+);
+
 // Hoàn thành phiên tập trung
 export const IcCheckTron = ({ size = 16, style }: P) => (
   <svg {...goc(size, style)}>

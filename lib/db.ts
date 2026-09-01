@@ -434,6 +434,49 @@ export async function thongKeTuan(userEmail: string): Promise<ThongKeTuan> {
   });
 }
 
+// --- Nhật ký nhìn lại cuối ngày ---------------------------------------------
+
+export type Reflection = {
+  user_email: string;
+  ngay: string;
+  thanh_tuu: string | null;
+  cai_thien: string | null;
+  updated_at: string;
+};
+
+export async function saveReflection(
+  userEmail: string,
+  ngay: string,
+  thanhTuu: string | null,
+  caiThien: string | null
+) {
+  return chayVaTuSua(async () => {
+    // Cả hai ô đều trống nghĩa là xóa dòng của ngày đó, nhật ký không giữ rác
+    if (!thanhTuu && !caiThien) {
+      await sql`DELETE FROM reflections WHERE user_email = ${userEmail} AND ngay = ${ngay}`;
+      return;
+    }
+    await sql`
+      INSERT INTO reflections (user_email, ngay, thanh_tuu, cai_thien)
+      VALUES (${userEmail}, ${ngay}, ${thanhTuu}, ${caiThien})
+      ON CONFLICT (user_email, ngay) DO UPDATE
+        SET thanh_tuu = EXCLUDED.thanh_tuu, cai_thien = EXCLUDED.cai_thien, updated_at = now()
+    `;
+  });
+}
+
+export async function listReflections(userEmail: string, tu: string, den: string) {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<Reflection>`
+      SELECT * FROM reflections
+      WHERE user_email = ${userEmail} AND ngay >= ${tu} AND ngay <= ${den}
+      ORDER BY ngay DESC
+      LIMIT 400
+    `;
+    return rows;
+  });
+}
+
 // --- Cấu hình người dùng (đồng bộ mọi thiết bị) -----------------------------
 
 export async function getTenGoi(userEmail: string) {
@@ -562,7 +605,7 @@ export async function checkSchema() {
     SELECT table_name AS bang, column_name AS cot
     FROM information_schema.columns
     WHERE table_schema = 'public'
-      AND table_name IN ('tasks', 'push_subscriptions', 'focus_sessions', 'daily_briefs', 'user_settings')
+      AND table_name IN ('tasks', 'push_subscriptions', 'focus_sessions', 'daily_briefs', 'user_settings', 'reflections')
   `;
 
   const thucTe: Record<string, string[]> = {};

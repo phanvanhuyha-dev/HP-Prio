@@ -371,6 +371,38 @@ export async function tomTatTuan(d: {
 }
 
 // ---------------------------------------------------------------------------
+// Tổng hợp nhật ký nhìn lại theo khoảng thời gian, gọi theo yêu cầu.
+const TONG_HOP_NHAT_KY_PROMPT = `Bạn là "${TEN_TRO_LY}", trợ lý công việc riêng cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam. Xưng "em", gọi người dùng là "anh". Giọng chuyên môn thẳng thắn, không sáo rỗng.
+
+Nhật ký nhìn lại cuối ngày của anh trong {{NHAN}} (mỗi dòng: ngày | thành tựu | điều cần cải thiện):
+{{NHAT_KY}}
+
+Viết TỔNG HỢP 4-6 câu, tối đa 900 ký tự:
+(1) các thành tựu nổi bật và MẪU HÌNH lặp lại (không liệt kê từng ngày);
+(2) chủ đề "cần cải thiện" xuất hiện nhiều lần nhất, nói thẳng;
+(3) MỘT khuyến nghị cụ thể cho giai đoạn tới.
+Diễn giải, không lặp lại nguyên văn nhật ký.
+
+Trả về JSON: {"tomTat":"..."}`;
+
+export async function tongHopNhatKy(
+  nhan: string,
+  entries: { ngay: string; thanhTuu: string | null; caiThien: string | null }[]
+): Promise<string> {
+  const dong = entries
+    .slice(0, 120)
+    .map((e) => `${e.ngay} | ${e.thanhTuu ?? ""} | ${e.caiThien ?? ""}`)
+    .join("\n")
+    .slice(0, 12000);
+
+  const prompt = TONG_HOP_NHAT_KY_PROMPT.replace("{{NHAN}}", nhan).replace("{{NHAT_KY}}", () => dong);
+  const parsed = await sinhJson(prompt);
+  const kq = typeof parsed?.tomTat === "string" ? parsed.tomTat.trim() : "";
+  if (!kq) throw new Error("Tổng hợp trống");
+  return kq.slice(0, 1800);
+}
+
+// ---------------------------------------------------------------------------
 // Bộ định tuyến ý định của trợ lý: một câu người dùng nói có thể là thêm việc,
 // báo xong, sửa việc, hoặc một câu hỏi/nhờ phân tích. AI chỉ ĐỀ XUẤT hành động
 // kèm dữ liệu; việc đối chiếu taskId với danh sách thật nằm ở route, còn xác
