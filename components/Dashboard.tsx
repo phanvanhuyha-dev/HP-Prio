@@ -13,7 +13,7 @@ import CalendarStrip from "./CalendarStrip";
 import ReflectionLog from "./ReflectionLog";
 import CaiDat from "./CaiDat";
 import { TroLyProvider } from "./TroLy";
-import { IcSpark, IcSun, IcMoon, IcList, IcChart, IcPen, IcJournal, IcCaiDat } from "./icons";
+import { IcSpark, IcSun, IcMoon, IcList, IcChart, IcJournal, IcCaiDat } from "./icons";
 
 const THU_VN = ["CHỦ NHẬT", "THỨ HAI", "THỨ BA", "THỨ TƯ", "THỨ NĂM", "THỨ SÁU", "THỨ BẢY"];
 
@@ -48,9 +48,6 @@ export default function Dashboard({ userName, email }: { userName: string; email
   const [ngayHomNay, setNgayHomNay] = useState("");
   const [tenGoi, setTenGoi] = useState("");
   const [giaoDien, setGiaoDien] = useState<"dark" | "light">("dark");
-  // Đổi tên ngay tại lời chào bằng cây bút, không cần khu hồ sơ riêng
-  const [suaTen, setSuaTen] = useState(false);
-  const [nhapTen, setNhapTen] = useState("");
   // Cài đặt gom về một chỗ: tên gọi, tên trợ lý, lịch họp, nhắc deadline, thoát
   const [moCaiDat, setMoCaiDat] = useState(false);
   const [lamMoiLich, setLamMoiLich] = useState(0);
@@ -75,27 +72,6 @@ export default function Dashboard({ userName, email }: { userName: string; email
     } catch {}
   }
 
-  // Tên gọi lưu MÁY CHỦ để mọi thiết bị cùng thấy; localStorage chỉ còn là
-  // bộ đệm cho lần vẽ đầu tiên khỏi nháy tên mặc định.
-  async function doiTenGoi(ten: string) {
-    setTenGoi(ten);
-    try {
-      if (ten) localStorage.setItem("hpprio-ten", ten);
-      else localStorage.removeItem("hpprio-ten");
-    } catch {}
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenGoi: ten })
-      });
-      if (!res.ok) throw new Error(await docLoi(res));
-      setDaLuu("Đã cập nhật tên gọi trên mọi thiết bị");
-      setTimeout(() => setDaLuu(null), 4000);
-    } catch (e: any) {
-      setError(loiThanThien(e));
-    }
-  }
   // Chế độ tập trung: lưu id để luôn đọc bản task MỚI NHẤT từ danh sách
   // (đánh dấu checklist trong lúc tập trung cần thấy thay đổi ngay).
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -399,69 +375,20 @@ export default function Dashboard({ userName, email }: { userName: string; email
           <div className="mono" style={{ fontSize: 11, color: "var(--slate)", letterSpacing: "0.14em", minHeight: 15 }}>
             {ngayHomNay}
           </div>
-          {suaTen ? (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "4px 0 0" }}>
-              <input
-                value={nhapTen}
-                autoFocus
-                onChange={(e) => setNhapTen(e.target.value.slice(0, 40))}
-                onBlur={() => {
-                  setSuaTen(false);
-                  const ten = nhapTen.trim();
-                  if (ten !== (tenGoi || "")) doiTenGoi(ten);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                  if (e.key === "Escape") {
-                    setNhapTen(tenGoi);
-                    setSuaTen(false);
-                  }
-                }}
-                aria-label="Tên gọi của anh"
-                placeholder="Tên anh muốn được gọi"
-                style={{
-                  fontSize: 22,
-                  fontWeight: 700,
-                  fontFamily: "var(--font-body)",
-                  background: "var(--field)",
-                  border: "1px solid var(--amber)",
-                  borderRadius: 10,
-                  padding: "6px 12px",
-                  color: "var(--cream)",
-                  minWidth: 0,
-                  width: "min(280px, 100%)"
-                }}
-              />
-            </div>
-          ) : (
-            <h1
-              style={{
-                fontSize: 26,
-                fontWeight: 700,
-                letterSpacing: "-0.01em",
-                margin: "4px 0 0",
-                color: "var(--cream)",
-                lineHeight: 1.25,
-                display: "flex",
-                alignItems: "center",
-                gap: 4
-              }}
-            >
-              Chào {tenGoi || userName.split(" ")[0] || userName}.
-              <button
-                onClick={() => {
-                  setNhapTen(tenGoi || userName.split(" ")[0] || "");
-                  setSuaTen(true);
-                }}
-                className="tap"
-                aria-label="Đổi tên gọi"
-                title="Đổi tên gọi"
-                style={{ background: "none", border: "none", color: "var(--slate)", margin: "-10px 0" }}
-              >
-                <IcPen size={14} />
-              </button>
-            </h1>
-          )}
+          {/* Lời chào chỉ để đọc. Đổi tên gọi nằm trong Cài đặt: mỗi năm đổi
+              một lần thì không đáng chiếm chỗ ngay cạnh dòng chào mỗi ngày. */}
+          <h1
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              letterSpacing: "-0.01em",
+              margin: "4px 0 0",
+              color: "var(--cream)",
+              lineHeight: 1.25
+            }}
+          >
+            Chào {tenGoi || userName.split(" ")[0] || userName}.
+          </h1>
           {!loading && (
             <p style={{ fontSize: 14, color: soQuaHan > 0 ? "var(--coral)" : "var(--slate)", margin: "4px 0 0" }}>
               {soQuaHan > 0
