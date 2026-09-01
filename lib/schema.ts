@@ -110,6 +110,17 @@ export const CAU_LENH_SCHEMA: string[] = [
      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
 
+  // Lịch họp người dùng tự dán vào, mỗi ngày một dòng. Dùng khi công ty chặn
+  // cả xuất bản lịch lẫn đăng ký ứng dụng Microsoft, tức mọi đường tự động
+  // đều tắc. Dán lại cùng một ngày thì ghi đè, không cộng dồn.
+  `CREATE TABLE IF NOT EXISTS lich_tay (
+     user_email TEXT NOT NULL,
+     ngay DATE NOT NULL,
+     su_kien JSONB NOT NULL,
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     PRIMARY KEY (user_email, ngay)
+   )`,
+
   // Nhật ký nhìn lại cuối ngày: thành tựu nổi bật và điều cần cải thiện,
   // mỗi ngày một dòng, xem lại và tổng hợp theo tuần/tháng/quý/năm.
   `CREATE TABLE IF NOT EXISTS reflections (
@@ -150,6 +161,7 @@ export const COT_BAT_BUOC: Record<string, string[]> = {
   daily_briefs: ["user_email", "ngay", "noi_dung", "created_at"],
   user_settings: ["user_email", "ten_goi", "ics_urls", "ten_tro_ly", "updated_at"],
   reflections: ["user_email", "ngay", "thanh_tuu", "cai_thien", "updated_at"],
+  lich_tay: ["user_email", "ngay", "su_kien", "updated_at"],
   ms_calendar: [
     "user_email", "refresh_token", "access_token", "het_han", "ms_email",
     "created_at", "updated_at"

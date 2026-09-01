@@ -1,5 +1,5 @@
 import ical from "node-ical";
-import { getIcsUrls } from "./db";
+import { getIcsUrls, getLichTay, ngayVNHomNay } from "./db";
 import { kiemTraUrlIcs } from "./ics-url";
 import { taiIcs } from "./tai-ics";
 import { suKienMicrosoft, daNoiMicrosoft } from "./ms-lich";
@@ -122,10 +122,24 @@ async function urlsCuaNguoi(userEmail: string): Promise<string[]> {
 export async function suKienSapToi(userEmail: string): Promise<{ cauHinh: boolean; suKien: SuKien[] }> {
   const urls = await urlsCuaNguoi(userEmail);
   const { noi: coMicrosoft } = await daNoiMicrosoft(userEmail);
-  if (urls.length === 0 && !coMicrosoft) return { cauHinh: false, suKien: [] };
+
+  // Lịch tự dán KHÔNG đi qua bộ đệm: người dùng vừa dán xong là phải thấy
+  // ngay, và nó nằm sẵn trong database nên đọc lại không tốn gì.
+  let tuTay: SuKien[] = [];
+  try {
+    tuTay = (await getLichTay(userEmail, ngayVNHomNay())) as SuKien[];
+  } catch (err) {
+    console.error("Đọc lịch tự dán lỗi:", (err as any)?.message ?? err);
+  }
+
+  if (urls.length === 0 && !coMicrosoft) {
+    return { cauHinh: tuTay.length > 0, suKien: tuTay };
+  }
 
   const cu = dem.get(userEmail);
-  if (cu && Date.now() - cu.luc < DEM_MS) return { cauHinh: true, suKien: cu.data };
+  if (cu && Date.now() - cu.luc < DEM_MS) {
+    return { cauHinh: true, suKien: gopSuKien([...tuTay, ...cu.data]) };
+  }
 
   const { tu, den } = cuaSoHomNay();
   const tatCa: SuKien[] = [];
@@ -155,8 +169,24 @@ export async function suKienSapToi(userEmail: string): Promise<{ cauHinh: boolea
   const data = tatCa.sort((a, b) => a.batDau.localeCompare(b.batDau)).slice(0, 30);
   // Chặn trần để một instance sống lâu không phình bộ nhớ vì nhiều tài khoản
   if (dem.size >= DEM_TOI_DA) dem.clear();
+  // Chỉ cache phần lấy từ mạng, lịch tự dán gộp vào sau mỗi lần đọc
   dem.set(userEmail, { luc: Date.now(), data });
-  return { cauHinh: true, suKien: data };
+  return { cauHinh: true, suKien: gopSuKien([...tuTay, ...data]) };
+}
+
+// Gộp nhiều nguồn: bỏ trùng theo giờ bắt đầu và tiêu đề, rồi xếp theo giờ.
+// Cùng một cuộc họp có thể vừa nằm trong lịch dán tay vừa nằm trong ICS.
+function gopSuKien(ds: SuKien[]): SuKien[] {
+  const thay = new Set<string>();
+  return ds
+    .filter((s) => {
+      const khoa = s.batDau + "|" + s.tieuDe.trim().toLowerCase();
+      if (thay.has(khoa)) return false;
+      thay.add(khoa);
+      return true;
+    })
+    .sort((a, b) => a.batDau.localeCompare(b.batDau))
+    .slice(0, 30);
 }
 
 // Người dùng vừa đổi liên kết thì phải thấy lịch mới ngay, không đợi hết 10 phút

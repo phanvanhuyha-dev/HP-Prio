@@ -586,6 +586,35 @@ export async function saveIcsUrls(userEmail: string, urls: string[]) {
   });
 }
 
+// --- Lịch tự dán ------------------------------------------------------------
+
+export async function getLichTay(userEmail: string, ngay: string): Promise<unknown[]> {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<{ su_kien: unknown }>`
+      SELECT su_kien FROM lich_tay WHERE user_email = ${userEmail} AND ngay = ${ngay}
+    `;
+    const v = rows[0]?.su_kien;
+    return Array.isArray(v) ? v : [];
+  });
+}
+
+export async function saveLichTay(userEmail: string, ngay: string, suKien: unknown[]) {
+  return chayVaTuSua(async () => {
+    await sql`
+      INSERT INTO lich_tay (user_email, ngay, su_kien)
+      VALUES (${userEmail}, ${ngay}, ${JSON.stringify(suKien)}::jsonb)
+      ON CONFLICT (user_email, ngay) DO UPDATE SET
+        su_kien = EXCLUDED.su_kien, updated_at = now()
+    `;
+  });
+}
+
+export async function xoaLichTay(userEmail: string, ngay: string) {
+  return chayVaTuSua(async () => {
+    await sql`DELETE FROM lich_tay WHERE user_email = ${userEmail} AND ngay = ${ngay}`;
+  });
+}
+
 // --- Token lịch Microsoft ----------------------------------------------------
 
 export type BanGhiMs = {
@@ -736,7 +765,7 @@ export async function checkSchema() {
     SELECT table_name AS bang, column_name AS cot
     FROM information_schema.columns
     WHERE table_schema = 'public'
-      AND table_name IN ('tasks', 'push_subscriptions', 'focus_sessions', 'daily_briefs', 'user_settings', 'reflections', 'ms_calendar')
+      AND table_name IN ('tasks', 'push_subscriptions', 'focus_sessions', 'daily_briefs', 'user_settings', 'reflections', 'ms_calendar', 'lich_tay')
   `;
 
   const thucTe: Record<string, string[]> = {};
