@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { normalizeDeadline } from "./db";
-import { TEN_TRO_LY } from "./branding";
+import { TEN_TRO_LY_MAC_DINH } from "./branding";
 
 // KHÔNG ghim tên model theo phiên bản. Google liên tục ngừng cấp model cũ cho
 // API key mới: dự án này đã chết hai lần vì gemini-1.5-flash rồi gemini-2.0-flash.
@@ -197,7 +197,7 @@ function nowInVietnam() {
   return { iso: `${datePart}T${timePart}+07:00`, weekday };
 }
 
-const SYSTEM_PROMPT = `Bạn là "${TEN_TRO_LY}", trợ lý phân tích công việc cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam.
+const SYSTEM_PROMPT = `Bạn là "{{TRO_LY}}", trợ lý phân tích công việc cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam.
 Nhiệm vụ: đọc câu mô tả công việc (tiếng Việt, có thể là giọng nói được chuyển thành text, văn phong tự nhiên/không đầy đủ),
 và trả về JSON với các trường:
 
@@ -214,10 +214,13 @@ và trả về JSON với các trường:
 
 Chỉ trả JSON, không thêm chữ nào khác.`;
 
-export async function parseTaskInput(rawInput: string): Promise<ParsedTask> {
+export async function parseTaskInput(
+  rawInput: string,
+  troLy: string = TEN_TRO_LY_MAC_DINH
+): Promise<ParsedTask> {
   const { iso, weekday } = nowInVietnam();
   const prompt =
-    SYSTEM_PROMPT.replace("{{TODAY}}", iso).replace("{{WEEKDAY}}", weekday) +
+    SYSTEM_PROMPT.replace("{{TRO_LY}}", () => troLy).replace("{{TODAY}}", iso).replace("{{WEEKDAY}}", weekday) +
     `\n\nCâu nhập của người dùng: "${rawInput}"`;
 
   const parsed = await sinhJson(prompt);
@@ -239,7 +242,7 @@ export async function parseTaskInput(rawInput: string): Promise<ParsedTask> {
   };
 }
 
-const BREAKDOWN_PROMPT = `Bạn là "${TEN_TRO_LY}", trợ lý công việc cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam.
+const BREAKDOWN_PROMPT = `Bạn là "{{TRO_LY}}", trợ lý công việc cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam.
 Nhiệm vụ: chia công việc dưới đây thành các bước hành động cụ thể, theo đúng thứ tự nên làm.
 
 Trả về JSON: {"steps": ["...", "..."]}
@@ -257,11 +260,14 @@ Chỉ trả JSON, không thêm chữ nào khác.`;
 
 // Chia một việc thành danh sách bước. Trả về mảng chuỗi đã lọc sạch,
 // route chỉ việc đưa thẳng cho giao diện.
-export async function breakdownTask(t: {
-  title: string;
-  deadline: string | null;
-  notes: string | null;
-}): Promise<string[]> {
+export async function breakdownTask(
+  t: {
+    title: string;
+    deadline: string | null;
+    notes: string | null;
+  },
+  troLy: string = TEN_TRO_LY_MAC_DINH
+): Promise<string[]> {
   // QUAN TRỌNG: driver Postgres trả cột TIMESTAMPTZ về dạng ĐỐI TƯỢNG Date chứ
   // không phải chuỗi (kiểu Task chỉ đúng sau khi qua JSON). Gọi .slice() thẳng
   // trên t.deadline từng làm route này chết với TypeError cho mọi việc có hạn.
@@ -273,7 +279,8 @@ export async function breakdownTask(t: {
 
   // Tiêu đề và ghi chú là dữ liệu người dùng nhập, dùng function replacer để
   // các mẫu $&, $' trong đó không bị String.replace diễn giải (xem routerBeIu).
-  const prompt = BREAKDOWN_PROMPT.replace("{{TITLE}}", () => t.title)
+  const prompt = BREAKDOWN_PROMPT.replace("{{TRO_LY}}", () => troLy)
+    .replace("{{TITLE}}", () => t.title)
     .replace("{{DEADLINE}}", han)
     .replace("{{NOTES}}", () => (t.notes?.trim() ? t.notes.slice(0, 2000) : "(trống)"));
 
@@ -290,7 +297,7 @@ export async function breakdownTask(t: {
 // ---------------------------------------------------------------------------
 // Điểm tin sáng: một đoạn ngắn Bé iu viết lúc 8h, tổng hợp việc đến hạn, quá
 // hạn và việc nằm im lâu ngày. Đây là tấm lưới chống quên chủ động của app.
-const BRIEF_PROMPT = `Bạn là "${TEN_TRO_LY}", trợ lý công việc riêng cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam. Xưng "em", gọi người dùng là "anh". Giọng chuyên môn thẳng thắn, không sáo rỗng, không nũng nịu.
+const BRIEF_PROMPT = `Bạn là "{{TRO_LY}}", trợ lý công việc riêng cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam. Xưng "em", gọi người dùng là "anh". Giọng chuyên môn thẳng thắn, không sáo rỗng, không nũng nịu.
 Hôm nay là {{WEEKDAY}}, {{TODAY}} (giờ Việt Nam).
 
 Dữ liệu công việc của anh:
@@ -307,17 +314,21 @@ Viết một ĐIỂM TIN SÁNG ngắn (3-5 câu, tối đa 600 ký tự) theo th
 
 Trả về JSON: {"brief":"..."}`;
 
-export async function briefDaily(duLieu: {
-  quaHan: string[];
-  homNay: string[];
-  lamNgay: string[];
-  namIm: string[];
-  tong: number;
-  lich?: string;
-}): Promise<string> {
+export async function briefDaily(
+  duLieu: {
+    quaHan: string[];
+    homNay: string[];
+    lamNgay: string[];
+    namIm: string[];
+    tong: number;
+    lich?: string;
+  },
+  troLy: string = TEN_TRO_LY_MAC_DINH
+): Promise<string> {
   const { iso, weekday } = nowInVietnam();
   const ke = (ds: string[]) => (ds.length ? ds.map((t) => `"${t}"`).join(", ") : "(không có)");
-  const prompt = BRIEF_PROMPT.replace("{{TODAY}}", iso.slice(0, 10))
+  const prompt = BRIEF_PROMPT.replace("{{TRO_LY}}", () => troLy)
+    .replace("{{TODAY}}", iso.slice(0, 10))
     .replace("{{WEEKDAY}}", weekday)
     .replace("{{QUA_HAN}}", () => ke(duLieu.quaHan))
     .replace("{{HOM_NAY}}", () => ke(duLieu.homNay))
@@ -334,7 +345,7 @@ export async function briefDaily(duLieu: {
 
 // ---------------------------------------------------------------------------
 // Tóm tắt tuần: gọi theo yêu cầu từ tab Nhìn lại, không chạy nền.
-const TOM_TAT_TUAN_PROMPT = `Bạn là "${TEN_TRO_LY}", trợ lý công việc riêng cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam. Xưng "em", gọi người dùng là "anh". Giọng chuyên môn thẳng thắn, không sáo rỗng.
+const TOM_TAT_TUAN_PROMPT = `Bạn là "{{TRO_LY}}", trợ lý công việc riêng cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam. Xưng "em", gọi người dùng là "anh". Giọng chuyên môn thẳng thắn, không sáo rỗng.
 
 Số liệu 7 ngày qua của anh:
 - Tổng thời gian tập trung: {{PHUT}} phút, {{PHIEN}} phiên
@@ -347,16 +358,20 @@ Viết TÓM TẮT TUẦN 3-5 câu, tối đa 700 ký tự: (1) nhận định th
 
 Trả về JSON: {"tomTat":"..."}`;
 
-export async function tomTatTuan(d: {
-  phut: number;
-  phien: number;
-  xong: number;
-  dsXong: string[];
-  tao: number;
-  quaHan: number;
-  dangMo: number;
-}): Promise<string> {
-  const prompt = TOM_TAT_TUAN_PROMPT.replace("{{PHUT}}", String(d.phut))
+export async function tomTatTuan(
+  d: {
+    phut: number;
+    phien: number;
+    xong: number;
+    dsXong: string[];
+    tao: number;
+    quaHan: number;
+    dangMo: number;
+  },
+  troLy: string = TEN_TRO_LY_MAC_DINH
+): Promise<string> {
+  const prompt = TOM_TAT_TUAN_PROMPT.replace("{{TRO_LY}}", () => troLy)
+    .replace("{{PHUT}}", String(d.phut))
     .replace("{{PHIEN}}", String(d.phien))
     .replace("{{XONG}}", String(d.xong))
     .replace("{{DS_XONG}}", () => (d.dsXong.length ? d.dsXong.map((t) => `"${t}"`).join(", ") : "không có"))
@@ -372,7 +387,7 @@ export async function tomTatTuan(d: {
 
 // ---------------------------------------------------------------------------
 // Tổng hợp nhật ký nhìn lại theo khoảng thời gian, gọi theo yêu cầu.
-const TONG_HOP_NHAT_KY_PROMPT = `Bạn là "${TEN_TRO_LY}", trợ lý công việc riêng cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam. Xưng "em", gọi người dùng là "anh". Giọng chuyên môn thẳng thắn, không sáo rỗng.
+const TONG_HOP_NHAT_KY_PROMPT = `Bạn là "{{TRO_LY}}", trợ lý công việc riêng cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam. Xưng "em", gọi người dùng là "anh". Giọng chuyên môn thẳng thắn, không sáo rỗng.
 
 Nhật ký nhìn lại cuối ngày của anh trong {{NHAN}} (mỗi dòng: ngày | thành tựu | điều cần cải thiện):
 {{NHAT_KY}}
@@ -387,7 +402,8 @@ Trả về JSON: {"tomTat":"..."}`;
 
 export async function tongHopNhatKy(
   nhan: string,
-  entries: { ngay: string; thanhTuu: string | null; caiThien: string | null }[]
+  entries: { ngay: string; thanhTuu: string | null; caiThien: string | null }[],
+  troLy: string = TEN_TRO_LY_MAC_DINH
 ): Promise<string> {
   const dong = entries
     .slice(0, 120)
@@ -395,7 +411,9 @@ export async function tongHopNhatKy(
     .join("\n")
     .slice(0, 12000);
 
-  const prompt = TONG_HOP_NHAT_KY_PROMPT.replace("{{NHAN}}", nhan).replace("{{NHAT_KY}}", () => dong);
+  const prompt = TONG_HOP_NHAT_KY_PROMPT.replace("{{TRO_LY}}", () => troLy)
+    .replace("{{NHAN}}", nhan)
+    .replace("{{NHAT_KY}}", () => dong);
   const parsed = await sinhJson(prompt);
   const kq = typeof parsed?.tomTat === "string" ? parsed.tomTat.trim() : "";
   if (!kq) throw new Error("Tổng hợp trống");
@@ -408,7 +426,7 @@ export async function tongHopNhatKy(
 // kèm dữ liệu; việc đối chiếu taskId với danh sách thật nằm ở route, còn xác
 // nhận cuối cùng nằm ở người dùng. Vai trò này thay luôn tính năng "Phân tích
 // & khuyến nghị" cũ: hỏi "hôm nay nên làm gì trước" là ra phân tích.
-const ROUTER_PROMPT = `Bạn là "${TEN_TRO_LY}", trợ lý công việc riêng cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam. Xưng "em", gọi người dùng là "anh". Giọng chuyên môn thẳng thắn, không nũng nịu.
+const ROUTER_PROMPT = `Bạn là "{{TRO_LY}}", trợ lý công việc riêng cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam. Xưng "em", gọi người dùng là "anh". Giọng chuyên môn thẳng thắn, không nũng nịu.
 Bây giờ là {{WEEKDAY}}, {{TODAY}} (giờ Việt Nam, UTC+7).
 
 Danh sách việc đang mở của anh (JSON: id, title, category, deadline, urgent, important):
@@ -449,12 +467,14 @@ export type KetQuaRouter =
 export async function routerBeIu(
   text: string,
   tasks: unknown[],
-  lichHomNay?: string
+  lichHomNay?: string,
+  troLy: string = TEN_TRO_LY_MAC_DINH
 ): Promise<KetQuaRouter> {
   const { iso, weekday } = nowInVietnam();
   // Nội dung người dùng và danh sách việc đi qua function replacer để các mẫu
   // $& $' không bị String.replace diễn giải (đã từng dính lỗi này ở analyze).
-  const prompt = ROUTER_PROMPT.replace("{{TODAY}}", iso)
+  const prompt = ROUTER_PROMPT.replace("{{TRO_LY}}", () => troLy)
+    .replace("{{TODAY}}", iso)
     .replace("{{WEEKDAY}}", weekday)
     .replace("{{TASKS}}", () => JSON.stringify(tasks))
     .replace("{{LICH}}", () => (lichHomNay?.trim() ? lichHomNay : "(trống hoặc chưa kết nối lịch)"))

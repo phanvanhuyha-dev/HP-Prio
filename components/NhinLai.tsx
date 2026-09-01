@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { docLoi, loiThanThien } from "@/lib/client-api";
-import { TEN_TRO_LY } from "@/lib/branding";
+import { useTenTroLy } from "./TroLy";
 import { IcSpark } from "./icons";
 
 type ThongKe = {
@@ -29,6 +29,7 @@ function baNgayGanDay(): { ngay: string; nhan: string }[] {
 // để không ảnh hưởng tính năng hàng ngày. (Đổi tên gọi nay nằm ngay cạnh lời
 // chào ở đầu trang, không cần khu hồ sơ riêng nữa.)
 export default function NhinLai({ email }: { email: string }) {
+  const TEN_TRO_LY = useTenTroLy();
   const [tk, setTk] = useState<ThongKe | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tomTat, setTomTat] = useState<string | null>(null);

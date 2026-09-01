@@ -93,6 +93,10 @@ export const CAU_LENH_SCHEMA: string[] = [
   // thêm tài khoản thứ hai là người đó thấy nguyên lịch họp của người thứ nhất.
   `ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS ics_urls TEXT`,
 
+  // Tên trợ lý AI do người dùng tự đặt. Rỗng thì dùng mặc định trong
+  // lib/branding.ts, không lấp sẵn để đổi mặc định sau này còn tác dụng.
+  `ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS ten_tro_ly TEXT`,
+
   // Nhật ký nhìn lại cuối ngày: thành tựu nổi bật và điều cần cải thiện,
   // mỗi ngày một dòng, xem lại và tổng hợp theo tuần/tháng/quý/năm.
   `CREATE TABLE IF NOT EXISTS reflections (
@@ -131,7 +135,7 @@ export const COT_BAT_BUOC: Record<string, string[]> = {
     "started_at", "ended_at", "seconds"
   ],
   daily_briefs: ["user_email", "ngay", "noi_dung", "created_at"],
-  user_settings: ["user_email", "ten_goi", "ics_urls", "updated_at"],
+  user_settings: ["user_email", "ten_goi", "ics_urls", "ten_tro_ly", "updated_at"],
   reflections: ["user_email", "ngay", "thanh_tuu", "cai_thien", "updated_at"]
 };
 

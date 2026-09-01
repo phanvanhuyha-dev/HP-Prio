@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { docLoi, loiThanThien } from "@/lib/client-api";
 import { demBuoc, themBuocVaoGhiChu } from "@/lib/checklist";
-import { TEN_TRO_LY } from "@/lib/branding";
+import { useTenTroLy } from "./TroLy";
 import NotesView from "./NotesView";
 import type { Task } from "./TaskList";
 import { IcSpark, IcCheckTron, IcPlay } from "./icons";
@@ -83,6 +83,7 @@ export default function FocusMode({
   onXongViec: (id: string) => void;
   onDoiGhiChu: (id: string, notes: string) => void;
 }) {
+  const TEN_TRO_LY = useTenTroLy();
   const [phien, setPhien] = useState<PhienTapTrung | null>(phienCu);
   const [conLai, setConLai] = useState(() =>
     phienCu ? Math.round((phienCu.ketThucLuc - Date.now()) / 1000) : 0

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { parseTaskInput } from "@/lib/gemini";
+import { layTenTroLyAnToan } from "@/lib/db";
 import { describeGeminiError, loiJson } from "@/lib/diagnostics";
 
 // Gemini có lúc mất 30-50s. Mặc định của Vercel là 10s, không đặt thì request
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const parsed = await parseTaskInput(text.trim());
+    const parsed = await parseTaskInput(text.trim(), await layTenTroLyAnToan(session.user.email));
     return NextResponse.json({ parsed });
   } catch (err: any) {
     console.error("Gemini parse error:", err);

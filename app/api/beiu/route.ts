@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { listTasks, isValidCategory, normalizeDeadline, type Task } from "@/lib/db";
+import { listTasks, isValidCategory, normalizeDeadline, layTenTroLyAnToan, type Task } from "@/lib/db";
 import { routerBeIu } from "@/lib/gemini";
 import { suKienSapToi, moTaLichChoAI } from "@/lib/calendar";
 import { describeDbError, describeGeminiError, loiJson } from "@/lib/diagnostics";
 import { doanViecTuCau } from "@/lib/ngay-viet";
-import { TEN_TRO_LY } from "@/lib/branding";
 
 // Gemini có lúc chậm, xem chú thích ở /api/parse.
 export const maxDuration = 60;
@@ -70,10 +69,11 @@ export async function POST(req: Request) {
     lich = moTaLichChoAI((await suKienSapToi(session.user.email)).suKien);
   } catch {}
 
+  const troLy = await layTenTroLyAnToan(session.user.email);
+
   let kq;
-  let duPhong = false;
   try {
-    kq = await routerBeIu(text.trim(), compact, lich);
+    kq = await routerBeIu(text.trim(), compact, lich, troLy);
   } catch (err) {
     console.error("BeIu router lỗi, chuyển sang lớp dự phòng:", err);
     // AI hỏng (hết hạn mức, mất mạng, quá tải) thì KHÔNG chặn người dùng ghi
@@ -85,7 +85,7 @@ export async function POST(req: Request) {
       hanhDong: "them",
       viec: doanViecTuCau(text.trim()),
       duPhong: true,
-      ghiChu: `${TEN_TRO_LY} đang không gọi được AI nên tự đọc câu này bằng quy tắc. Anh kiểm lại giúp em, nhất là hạn chót.`,
+      ghiChu: `${troLy} đang không gọi được AI nên tự đọc câu này bằng quy tắc. Anh kiểm lại giúp em, nhất là hạn chót.`,
       khacPhuc: m.khacPhuc
     });
   }
@@ -155,6 +155,6 @@ export async function POST(req: Request) {
     tieuDe: task.title,
     capNhat,
     tomTat,
-    troLy: TEN_TRO_LY
+    troLy
   });
 }

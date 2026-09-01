@@ -1,11 +1,9 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { signOut } from "next-auth/react";
 import { docLoi, loiThanThien } from "@/lib/client-api";
-import { TEN_TRO_LY } from "@/lib/branding";
+import { TEN_TRO_LY_MAC_DINH } from "@/lib/branding";
 import TaskInput from "./TaskInput";
 import TaskList, { type Task } from "./TaskList";
-import PushSetup from "./PushSetup";
 import TrashPanel from "./TrashPanel";
 import DonePanel from "./DonePanel";
 import FocusMode, { docPhienDangDo, xoaPhienDangDo, type PhienTapTrung } from "./FocusMode";
@@ -13,8 +11,9 @@ import MiniFocusBar from "./MiniFocusBar";
 import NhinLai from "./NhinLai";
 import CalendarStrip from "./CalendarStrip";
 import ReflectionLog from "./ReflectionLog";
-import CalendarSettings from "./CalendarSettings";
-import { IcSpark, IcSun, IcMoon, IcList, IcChart, IcPen, IcJournal, IcLich } from "./icons";
+import CaiDat from "./CaiDat";
+import { TroLyProvider } from "./TroLy";
+import { IcSpark, IcSun, IcMoon, IcList, IcChart, IcPen, IcJournal, IcCaiDat } from "./icons";
 
 const THU_VN = ["CHỦ NHẬT", "THỨ HAI", "THỨ BA", "THỨ TƯ", "THỨ NĂM", "THỨ SÁU", "THỨ BẢY"];
 
@@ -52,9 +51,10 @@ export default function Dashboard({ userName, email }: { userName: string; email
   // Đổi tên ngay tại lời chào bằng cây bút, không cần khu hồ sơ riêng
   const [suaTen, setSuaTen] = useState(false);
   const [nhapTen, setNhapTen] = useState("");
-  // Khu nối lịch họp: đóng lại thì không chiếm pixel nào
-  const [moLich, setMoLich] = useState(false);
+  // Cài đặt gom về một chỗ: tên gọi, tên trợ lý, lịch họp, nhắc deadline, thoát
+  const [moCaiDat, setMoCaiDat] = useState(false);
   const [lamMoiLich, setLamMoiLich] = useState(0);
+  const [tenTroLy, setTenTroLy] = useState(TEN_TRO_LY_MAC_DINH);
   useEffect(() => {
     const d = new Date();
     const p = (n: number) => String(n).padStart(2, "0");
@@ -241,6 +241,8 @@ export default function Dashboard({ userName, email }: { userName: string; email
       setTasks(data.tasks || []);
       setDem(data.counts || { open: 0, done: 0, deleted: 0 });
 
+      if (typeof data.tenTroLy === "string" && data.tenTroLy) setTenTroLy(data.tenTroLy);
+
       // Tên gọi: máy chủ là nguồn chuẩn. Máy chủ chưa có mà máy này từng đặt
       // tên trong localStorage (bản cũ) thì tự đẩy lên một lần, khỏi gõ lại.
       const tenServer = typeof data.tenGoi === "string" ? data.tenGoi : "";
@@ -385,8 +387,11 @@ export default function Dashboard({ userName, email }: { userName: string; email
   }
 
   return (
-    // Danh sách dọc đọc thoải mái nhất trong một cột hẹp; 1040px là di sản của
-    // bố cục ma trận 2x2 cũ, nay thu về 680px.
+    // TroLyProvider bọc cả cây để mọi component con gọi useTenTroLy() đều thấy
+    // tên mới ngay khi người dùng đổi trong Cài đặt, không cần tải lại trang.
+    <TroLyProvider ten={tenTroLy}>
+    {/* Danh sách dọc đọc thoải mái nhất trong một cột hẹp; 1040px là di sản của
+        bố cục ma trận 2x2 cũ, nay thu về 680px. */}
     <main style={{ maxWidth: 680, margin: "0 auto", padding: "24px 16px 150px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 22 }}>
         <div style={{ minWidth: 0 }}>
@@ -470,27 +475,9 @@ export default function Dashboard({ userName, email }: { userName: string; email
           )}
         </div>
 
-        {/* Cụm nút gọn: chuông nhắc, nối lịch, đổi giao diện, đăng xuất */}
+        {/* Chỉ còn hai nút: đổi giao diện (bấm thường xuyên) và Cài đặt.
+            Chuông nhắc, nối lịch và đăng xuất đã dọn vào trong Cài đặt. */}
         <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-          <PushSetup
-            onThongBao={(m) => {
-              setDaLuu(m);
-              setTimeout(() => setDaLuu(null), 4000);
-            }}
-          />
-          <button
-            onClick={() => {
-              setTab("homnay");
-              setMoLich((v) => !v);
-            }}
-            className="tap"
-            aria-label="Nối lịch họp"
-            aria-expanded={moLich}
-            title="Nối lịch họp"
-            style={{ background: "none", border: "none", color: "var(--slate)", padding: "0 2px" }}
-          >
-            <IcLich size={16} />
-          </button>
           <button
             onClick={doiGiaoDien}
             className="tap"
@@ -501,16 +488,39 @@ export default function Dashboard({ userName, email }: { userName: string; email
             {giaoDien === "dark" ? <IcSun size={17} /> : <IcMoon size={16} />}
           </button>
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => setMoCaiDat(true)}
             className="tap"
-            aria-label="Đăng xuất"
-            title="Đăng xuất"
-            style={{ background: "none", border: "none", fontSize: 12.5, color: "var(--slate)", padding: "0 4px" }}
+            aria-label="Cài đặt"
+            title="Cài đặt"
+            style={{ background: "none", border: "none", color: "var(--slate)", padding: "0 2px" }}
           >
-            Thoát
+            <IcCaiDat size={17} />
           </button>
         </div>
       </header>
+
+      {moCaiDat && (
+        <CaiDat
+          tenGoiHienTai={tenGoi}
+          tenTroLyHienTai={tenTroLy}
+          onDong={() => setMoCaiDat(false)}
+          onThongBao={(m) => {
+            setDaLuu(m);
+            setTimeout(() => setDaLuu(null), 4000);
+          }}
+          onLuuXong={({ tenGoi: tg, tenTroLy: tl, lichDoi }) => {
+            setTenGoi(tg);
+            setTenTroLy(tl);
+            try {
+              if (tg) localStorage.setItem("hpprio-ten", tg);
+              else localStorage.removeItem("hpprio-ten");
+            } catch {}
+            if (lichDoi) setLamMoiLich((v) => v + 1);
+            setDaLuu("Đã lưu cài đặt trên mọi thiết bị");
+            setTimeout(() => setDaLuu(null), 4000);
+          }}
+        />
+      )}
 
       {tab === "homnay" && (
       <>
@@ -546,18 +556,6 @@ export default function Dashboard({ userName, email }: { userName: string; email
             {brief}
           </p>
         </div>
-      )}
-
-      {/* Khu nối lịch, mở bằng nút tờ lịch trên đầu trang */}
-      {moLich && (
-        <CalendarSettings
-          onDong={() => setMoLich(false)}
-          onLuuXong={(m) => {
-            setLamMoiLich((v) => v + 1);
-            setDaLuu(m);
-            setTimeout(() => setDaLuu(null), 4000);
-          }}
-        />
       )}
 
       {/* Lịch họp hôm nay (Outlook + Google qua ICS), tự ẩn khi trống */}
@@ -848,8 +846,8 @@ export default function Dashboard({ userName, email }: { userName: string; email
 
       {/* Nút nổi gọi trợ lý, thay cho ô nhập luôn chiếm màn hình chính */}
       {tab === "homnay" && !moBeIu && !focusTask && (
-        <button className="fab-beiu" onClick={() => setMoBeIu(true)} aria-label={`Thêm việc với ${TEN_TRO_LY}`}>
-          <IcSpark size={16} /> {TEN_TRO_LY}
+        <button className="fab-beiu" onClick={() => setMoBeIu(true)} aria-label={`Thêm việc với ${tenTroLy}`}>
+          <IcSpark size={16} /> {tenTroLy}
         </button>
       )}
 
@@ -860,12 +858,12 @@ export default function Dashboard({ userName, email }: { userName: string; email
             className="sheet-noi-dung"
             role="dialog"
             aria-modal="true"
-            aria-label={`Thêm việc với ${TEN_TRO_LY}`}
+            aria-label={`Thêm việc với ${tenTroLy}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <span style={{ fontSize: 17, fontWeight: 600, color: "var(--cream)", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <IcSpark size={15} /> {TEN_TRO_LY}
+                <IcSpark size={15} /> {tenTroLy}
               </span>
               <button
                 onClick={() => setMoBeIu(false)}
@@ -898,5 +896,6 @@ export default function Dashboard({ userName, email }: { userName: string; email
         />
       )}
     </main>
+    </TroLyProvider>
   );
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { thongKeTuan } from "@/lib/db";
+import { thongKeTuan, layTenTroLyAnToan } from "@/lib/db";
 import { tomTatTuan } from "@/lib/gemini";
 import { tomTatTuanTheoMau } from "@/lib/brief-mau";
 import { describeDbError, loiJson } from "@/lib/diagnostics";
@@ -50,7 +50,8 @@ export async function POST() {
   };
 
   try {
-    return NextResponse.json({ tomTat: await tomTatTuan({ ...soLieu, dsXong: tk.vuaXong }) });
+    const troLy = await layTenTroLyAnToan(session.user.email);
+    return NextResponse.json({ tomTat: await tomTatTuan({ ...soLieu, dsXong: tk.vuaXong }, troLy) });
   } catch (err) {
     // AI hỏng thì vẫn trả bản theo mẫu từ số liệu, hơn là để trống màn hình
     console.error("Tóm tắt tuần lỗi, dùng bản theo mẫu:", err);

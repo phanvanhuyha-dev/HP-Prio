@@ -1,4 +1,4 @@
-import { TEN_TRO_LY } from "./branding";
+import { TEN_TRO_LY_MAC_DINH } from "./branding";
 
 // Điểm tin sáng dựng theo mẫu từ chính dữ liệu, KHÔNG gọi AI.
 // Dùng khi Gemini hết hạn mức, mất kết nối, hoặc chưa cấu hình khóa.
@@ -10,14 +10,17 @@ function ke(ds: string[], toiDa = 2): string {
   return l.join(", ") + (con > 0 ? ` và ${con} việc nữa` : "");
 }
 
-export function briefTheoMau(d: {
-  quaHan: string[];
-  homNay: string[];
-  lamNgay: string[];
-  namIm: string[];
-  tong: number;
-  lich?: string;
-}): string {
+export function briefTheoMau(
+  d: {
+    quaHan: string[];
+    homNay: string[];
+    lamNgay: string[];
+    namIm: string[];
+    tong: number;
+    lich?: string;
+  },
+  troLy: string = TEN_TRO_LY_MAC_DINH
+): string {
   const cau: string[] = [];
 
   if (d.quaHan.length > 0) {
@@ -52,7 +55,7 @@ export function briefTheoMau(d: {
   }
 
   // Nói rõ đây là bản rút gọn, không giả vờ là bản AI viết
-  cau.push(`(${TEN_TRO_LY} đang tạm dùng bản tóm tắt rút gọn.)`);
+  cau.push(`(${troLy} đang tạm dùng bản tóm tắt rút gọn.)`);
   return cau.join(" ");
 }
 

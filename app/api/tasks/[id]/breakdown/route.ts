@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getTaskById, isValidUuid } from "@/lib/db";
+import { getTaskById, isValidUuid, layTenTroLyAnToan } from "@/lib/db";
 import { breakdownTask } from "@/lib/gemini";
 import { describeDbError, describeGeminiError, loiJson } from "@/lib/diagnostics";
 
@@ -31,11 +31,14 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   }
 
   try {
-    const steps = await breakdownTask({
-      title: task.title,
-      deadline: task.deadline,
-      notes: task.notes
-    });
+    const steps = await breakdownTask(
+      {
+        title: task.title,
+        deadline: task.deadline,
+        notes: task.notes
+      },
+      await layTenTroLyAnToan(session.user.email)
+    );
     if (steps.length === 0) {
       return NextResponse.json(
         { error: "AI không đề xuất được bước nào, anh thử lại hoặc tự ghi vào ghi chú." },

@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { chuanHoaTenTroLy } from "@/lib/branding";
 import {
   listTasks,
   createTask,
   countByStatus,
-  getTenGoi,
+  getCaiDat,
   isValidCategory,
   isValidStatus,
   normalizeDeadline
@@ -25,13 +26,20 @@ export async function GET(req: Request) {
   }
 
   try {
-    // Gộp đếm và tên gọi vào cùng lần gọi, để giao diện khỏi hỏi thêm request.
-    const [tasks, counts, tenGoi] = await Promise.all([
+    // Gộp đếm và cấu hình vào cùng lần gọi, để giao diện khỏi hỏi thêm request.
+    // Tên trợ lý phải có ngay từ lần vẽ đầu, nếu không nút gọi trợ lý sẽ nháy
+    // từ tên mặc định sang tên thật ngay trước mắt người dùng.
+    const [tasks, counts, caiDat] = await Promise.all([
       listTasks(session.user.email, requested),
       countByStatus(session.user.email),
-      getTenGoi(session.user.email)
+      getCaiDat(session.user.email)
     ]);
-    return NextResponse.json({ tasks, counts, tenGoi });
+    return NextResponse.json({
+      tasks,
+      counts,
+      tenGoi: caiDat.tenGoi,
+      tenTroLy: chuanHoaTenTroLy(caiDat.tenTroLy)
+    });
   } catch (err) {
     console.error("List tasks error:", err);
     return loiJson(describeDbError(err), "tasks");

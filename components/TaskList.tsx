@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import NotesView from "./NotesView";
 import { demBuoc, themBuocVaoGhiChu } from "@/lib/checklist";
 import { docLoi, loiThanThien, rung } from "@/lib/client-api";
-import { TEN_TRO_LY } from "@/lib/branding";
+import { useTenTroLy } from "./TroLy";
 import { IcSpark, IcHome, IcCoQuan, IcPlay } from "./icons";
 
 export type Task = {
@@ -54,6 +54,7 @@ export default function TaskList({
   onReclassify: (id: string, patch: ReclassifyPatch) => void;
   onFocus: (task: Task) => void;
 }) {
+  const TEN_TRO_LY = useTenTroLy();
   const lanBamCuoi = useRef(0);
 
   function danhDauXong(id: string) {
@@ -102,6 +103,7 @@ function TaskRow({
   onReclassify: (id: string, patch: ReclassifyPatch) => void;
   onFocus: (task: Task) => void;
 }) {
+  const TEN_TRO_LY = useTenTroLy();
   const nhom = nhomCua(task);
   const overdue = task.deadline ? new Date(task.deadline) < new Date() : false;
   const buoc = demBuoc(task.notes);

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useId, CSSProperties } from "react";
 import { docLoi, loiThanThien, ngayVN } from "@/lib/client-api";
-import { TEN_TRO_LY } from "@/lib/branding";
+import { useTenTroLy } from "./TroLy";
 import { IcSpark, IcMic, IcStop } from "./icons";
 import { doanViecTuCau } from "@/lib/ngay-viet";
 
@@ -46,6 +46,7 @@ function ghiChuMacDinh(cauGoc: string, tieuDe: string) {
 }
 
 export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string) => void }) {
+  const TEN_TRO_LY = useTenTroLy();
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -539,6 +540,7 @@ function ReviewCard({
   onConfirm: (final: DraftTask) => void;
   onCancel: () => void;
 }) {
+  const TEN_TRO_LY = useTenTroLy();
   const [draft, setDraft] = useState<DraftTask>(() => ({
     ...suggestion,
     notes: ghiChuMacDinh(original, suggestion.title)

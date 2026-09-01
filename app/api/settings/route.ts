@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { saveTenGoi, getTenGoi, getIcsUrls, saveIcsUrls } from "@/lib/db";
+import { saveTenGoi, getCaiDat, saveIcsUrls, saveTenTroLy } from "@/lib/db";
+import { chuanHoaTenTroLy, TEN_TRO_LY_MAC_DINH } from "@/lib/branding";
 import { tachDanhSachIcs, cheUrlIcs, TOI_DA_LICH } from "@/lib/ics-url";
 import { xoaDemLich } from "@/lib/calendar";
 import { describeDbError, loiJson } from "@/lib/diagnostics";
@@ -16,16 +17,14 @@ export async function GET() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
-    const [tenGoi, urls] = await Promise.all([
-      getTenGoi(session.user.email),
-      getIcsUrls(session.user.email)
-    ]);
+    const cd = await getCaiDat(session.user.email);
     return NextResponse.json({
-      tenGoi,
+      tenGoi: cd.tenGoi,
+      tenTroLy: chuanHoaTenTroLy(cd.tenTroLy),
       // Trả về nguyên liên kết để người dùng sửa được, kèm bản che sẵn để
       // giao diện hiện ra màn hình mà không phơi phần bí mật.
-      icsUrls: urls,
-      icsChe: urls.map(cheUrlIcs)
+      icsUrls: cd.icsUrls,
+      icsChe: cd.icsUrls.map(cheUrlIcs)
     });
   } catch (err) {
     return loiJson(describeDbError(err), "settings");
@@ -51,8 +50,9 @@ export async function PATCH(req: Request) {
   // Chỉ đụng vào trường nào thực sự được gửi lên. Bản trước mặc định coi
   // tenGoi vắng mặt là chuỗi rỗng, nên một gói tin chỉ đổi lịch sẽ xóa mất tên.
   const doiTen = "tenGoi" in body;
+  const doiTroLy = "tenTroLy" in body;
   const doiLich = "icsUrls" in body;
-  if (!doiTen && !doiLich) {
+  if (!doiTen && !doiTroLy && !doiLich) {
     return NextResponse.json({ error: "Không có gì để cập nhật" }, { status: 400 });
   }
 
@@ -66,6 +66,23 @@ export async function PATCH(req: Request) {
     try {
       await saveTenGoi(session.user.email, ten || null);
       ketQua.tenGoi = ten || null;
+    } catch (err) {
+      return loiJson(describeDbError(err), "settings");
+    }
+  }
+
+  if (doiTroLy) {
+    if (body.tenTroLy !== null && typeof body.tenTroLy !== "string") {
+      return NextResponse.json({ error: "Tên trợ lý không hợp lệ" }, { status: 400 });
+    }
+    // Để trống là quay về mặc định: lưu null chứ không lưu sẵn chữ "Bé iu",
+    // để sau này đổi mặc định thì người chưa đặt tên vẫn đi theo mặc định mới.
+    const tho = typeof body.tenTroLy === "string" ? body.tenTroLy : "";
+    const sach = chuanHoaTenTroLy(tho);
+    const luu = sach === TEN_TRO_LY_MAC_DINH ? null : sach;
+    try {
+      await saveTenTroLy(session.user.email, luu);
+      ketQua.tenTroLy = sach;
     } catch (err) {
       return loiJson(describeDbError(err), "settings");
     }

@@ -1,4 +1,4 @@
-import { listTasks, getBrief, saveBrief, ngayVNHomNay, type Task } from "./db";
+import { listTasks, getBrief, saveBrief, ngayVNHomNay, layTenTroLyAnToan, type Task } from "./db";
 import { briefDaily } from "./gemini";
 import { briefTheoMau } from "./brief-mau";
 import { suKienSapToi, moTaLichChoAI } from "./calendar";
@@ -54,15 +54,17 @@ export async function layHoacTaoBrief(userEmail: string): Promise<string | null>
 
   const duLieu = { ...phanLoaiChoBrief(tasks), lich };
 
+  const troLy = await layTenTroLyAnToan(userEmail);
+
   // AI viết hay hơn, nhưng điểm tin là tấm lưới chống quên nên KHÔNG được
   // vắng mặt chỉ vì Gemini hết hạn mức hay lỗi mạng. Hỏng thì dựng theo mẫu
   // từ chính dữ liệu đã tính.
   let brief: string;
   try {
-    brief = await briefDaily(duLieu);
+    brief = await briefDaily(duLieu, troLy);
   } catch (err) {
     console.error("Brief AI lỗi, dùng bản theo mẫu:", (err as any)?.message ?? err);
-    brief = briefTheoMau(duLieu);
+    brief = briefTheoMau(duLieu, troLy);
   }
 
   await saveBrief(userEmail, ngay, brief);

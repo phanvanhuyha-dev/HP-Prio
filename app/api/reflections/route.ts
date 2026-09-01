@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { saveReflection, listReflections, ngayVNHomNay } from "@/lib/db";
+import { saveReflection, listReflections, ngayVNHomNay, layTenTroLyAnToan } from "@/lib/db";
 import { tongHopNhatKy } from "@/lib/gemini";
 import { describeDbError, describeGeminiError, loiJson } from "@/lib/diagnostics";
 
@@ -81,7 +81,8 @@ export async function POST(req: Request) {
   try {
     const tomTat = await tongHopNhatKy(
       typeof body?.nhan === "string" ? body.nhan.slice(0, 40) : "khoảng thời gian đã chọn",
-      entries.map((e) => ({ ngay: String(e.ngay).slice(0, 10), thanhTuu: e.thanh_tuu, caiThien: e.cai_thien }))
+      entries.map((e) => ({ ngay: String(e.ngay).slice(0, 10), thanhTuu: e.thanh_tuu, caiThien: e.cai_thien })),
+      await layTenTroLyAnToan(session.user.email)
     );
     return NextResponse.json({ tomTat });
   } catch (err) {

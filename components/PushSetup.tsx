@@ -14,7 +14,15 @@ type Status = "idle" | "enabled" | "denied" | "unsupported" | "error";
 // Thu gọn thành MỘT nút chuông trên thanh đầu trang, không còn chiếm một băng
 // riêng. Thông báo lỗi/diễn giải đẩy ra ngoài qua onThongBao để hiện ở băng
 // thông báo chung của Dashboard.
-export default function PushSetup({ onThongBao }: { onThongBao?: (msg: string) => void }) {
+export default function PushSetup({
+  onThongBao,
+  kieu = "icon"
+}: {
+  onThongBao?: (msg: string) => void;
+  // "icon": một nút chuông trần cho thanh đầu trang.
+  // "hang": một hàng có nhãn chữ, dùng trong màn hình Cài đặt.
+  kieu?: "icon" | "hang";
+}) {
   const [status, setStatus] = useState<Status>("idle");
   const [busy, setBusy] = useState(false);
   const regPromiseRef = useRef<Promise<ServiceWorkerRegistration> | null>(null);
@@ -106,7 +114,18 @@ export default function PushSetup({ onThongBao }: { onThongBao?: (msg: string) =
     }
   }
 
-  if (status === "unsupported") return null;
+  if (status === "unsupported") {
+    // Trong Cài đặt thì nói rõ vì sao không có, đừng biến mất không lý do
+    if (kieu === "hang") {
+      return (
+        <p style={{ fontSize: 12.5, color: "var(--slate)", margin: 0 }}>
+          Trình duyệt này không hỗ trợ thông báo đẩy. Trên iPhone, anh cần cài HPPrio vào màn hình chính
+          bằng Safari rồi mở từ đó.
+        </p>
+      );
+    }
+    return null;
+  }
 
   const daBat = status === "enabled";
   const nhan = daBat
@@ -114,6 +133,38 @@ export default function PushSetup({ onThongBao }: { onThongBao?: (msg: string) =
     : status === "denied"
       ? "Thông báo đang bị chặn, bấm để xem cách bật lại"
       : "Bật nhắc deadline";
+
+  if (kieu === "hang") {
+    return (
+      <button
+        onClick={daBat ? () => onThongBao?.("Nhắc deadline đang bật cho thiết bị này.") : enablePush}
+        disabled={busy}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          width: "100%",
+          background: "var(--field)",
+          border: "1px solid var(--line)",
+          borderRadius: 10,
+          padding: "11px 12px",
+          minHeight: 44,
+          fontSize: 13.5,
+          textAlign: "left",
+          color: daBat ? "var(--teal)" : status === "denied" || status === "error" ? "var(--coral)" : "var(--cream)",
+          opacity: busy ? 0.6 : 1
+        }}
+      >
+        {busy ? <span className="spinner" aria-hidden="true" /> : daBat ? <IcBell size={16} /> : <IcBellOff size={16} />}
+        <span style={{ flex: 1 }}>{nhan}</span>
+        {!daBat && status !== "denied" && (
+          <span className="mono" style={{ fontSize: 11, color: "var(--slate)" }}>
+            bấm để bật
+          </span>
+        )}
+      </button>
+    );
+  }
 
   return (
     <button

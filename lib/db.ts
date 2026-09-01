@@ -1,5 +1,6 @@
 import { sql } from "@vercel/postgres";
 import { CAU_LENH_SCHEMA, COT_BAT_BUOC, laLoiThieuCauTruc } from "./schema";
+import { chuanHoaTenTroLy, TEN_TRO_LY_MAC_DINH } from "./branding";
 
 // Tích hợp Neon trên Vercel có khi chỉ đặt DATABASE_URL, trong khi @vercel/postgres
 // chỉ tìm đúng POSTGRES_URL rồi báo 'missing_connection_string'. Bắc cầu sang để
@@ -498,16 +499,79 @@ export async function saveTenGoi(userEmail: string, ten: string | null) {
   });
 }
 
+// Đọc cả cụm cấu hình trong MỘT truy vấn. Màn hình Cài đặt cần đủ ba thứ nên
+// gọi riêng từng cái là ba lượt đi về database cho cùng một hàng.
+export type CaiDatNguoiDung = {
+  tenGoi: string | null;
+  tenTroLy: string | null;
+  icsUrls: string[];
+};
+
+function tachDong(x: string | null | undefined): string[] {
+  return (x ?? "")
+    .split("\n")
+    .map((u) => u.trim())
+    .filter(Boolean);
+}
+
+export async function getCaiDat(userEmail: string): Promise<CaiDatNguoiDung> {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<{
+      ten_goi: string | null;
+      ten_tro_ly: string | null;
+      ics_urls: string | null;
+    }>`
+      SELECT ten_goi, ten_tro_ly, ics_urls FROM user_settings WHERE user_email = ${userEmail}
+    `;
+    const r = rows[0];
+    return {
+      tenGoi: r?.ten_goi ?? null,
+      tenTroLy: r?.ten_tro_ly ?? null,
+      icsUrls: tachDong(r?.ics_urls)
+    };
+  });
+}
+
 // Liên kết lịch ICS của riêng người này, mỗi dòng một lịch.
 export async function getIcsUrls(userEmail: string): Promise<string[]> {
   return chayVaTuSua(async () => {
     const { rows } = await sql<{ ics_urls: string | null }>`
       SELECT ics_urls FROM user_settings WHERE user_email = ${userEmail}
     `;
-    return (rows[0]?.ics_urls ?? "")
-      .split("\n")
-      .map((u) => u.trim())
-      .filter(Boolean);
+    return tachDong(rows[0]?.ics_urls);
+  });
+}
+
+// Tên trợ lý AI. Trả về null khi người dùng chưa đặt, để nơi gọi tự quyết
+// dùng mặc định nào.
+export async function getTenTroLy(userEmail: string): Promise<string | null> {
+  return chayVaTuSua(async () => {
+    const { rows } = await sql<{ ten_tro_ly: string | null }>`
+      SELECT ten_tro_ly FROM user_settings WHERE user_email = ${userEmail}
+    `;
+    return rows[0]?.ten_tro_ly ?? null;
+  });
+}
+
+// Tên trợ lý đã chuẩn hóa, KHÔNG bao giờ ném lỗi. Mọi màn hình gọi AI đều
+// cần nó, mà hỏng cả tính năng chỉ vì không đọc được một cái tên thì không
+// đáng: thà xưng bằng tên mặc định.
+export async function layTenTroLyAnToan(userEmail: string): Promise<string> {
+  try {
+    return chuanHoaTenTroLy(await getTenTroLy(userEmail));
+  } catch (err) {
+    console.error("Đọc ten_tro_ly lỗi, dùng mặc định:", (err as any)?.message ?? err);
+    return TEN_TRO_LY_MAC_DINH;
+  }
+}
+
+export async function saveTenTroLy(userEmail: string, ten: string | null) {
+  return chayVaTuSua(async () => {
+    await sql`
+      INSERT INTO user_settings (user_email, ten_tro_ly)
+      VALUES (${userEmail}, ${ten})
+      ON CONFLICT (user_email) DO UPDATE SET ten_tro_ly = EXCLUDED.ten_tro_ly, updated_at = now()
+    `;
   });
 }
 

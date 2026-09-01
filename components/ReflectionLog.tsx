@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { docLoi, loiThanThien } from "@/lib/client-api";
-import { TEN_TRO_LY } from "@/lib/branding";
+import { useTenTroLy } from "./TroLy";
 import { IcSpark } from "./icons";
 
 type Entry = { ngay: string; thanh_tuu: string | null; cai_thien: string | null };
@@ -25,6 +25,7 @@ function hienNgay(iso: string) {
 // Nhật ký nhìn lại cuối ngày: ghi thành tựu và điều cần cải thiện, thành một
 // log xem lại được và nhờ Bé iu tổng hợp theo tuần/tháng/quý/năm.
 export default function ReflectionLog() {
+  const TEN_TRO_LY = useTenTroLy();
   const homNay = ngayVN();
   const [thanhTuu, setThanhTuu] = useState("");
   const [caiThien, setCaiThien] = useState("");
