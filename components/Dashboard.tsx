@@ -12,7 +12,8 @@ import FocusMode, { docPhienDangDo, xoaPhienDangDo, type PhienTapTrung } from ".
 import MiniFocusBar from "./MiniFocusBar";
 import NhinLai from "./NhinLai";
 import CalendarStrip from "./CalendarStrip";
-import { IcSpark, IcSun, IcMoon, IcList, IcChart, IcPen } from "./icons";
+import ReflectionLog from "./ReflectionLog";
+import { IcSpark, IcSun, IcMoon, IcList, IcChart, IcPen, IcJournal } from "./icons";
 
 const THU_VN = ["CHỦ NHẬT", "THỨ HAI", "THỨ BA", "THỨ TƯ", "THỨ NĂM", "THỨ SÁU", "THỨ BẢY"];
 
@@ -34,8 +35,9 @@ export default function Dashboard({ userName, email }: { userName: string; email
   // Khung nhập việc nay nằm sau nút nổi "Bé iu", không chiếm màn hình chính nữa.
   const [moBeIu, setMoBeIu] = useState(false);
 
-  // Hai tab: Hôm nay (làm việc) và Nhìn lại (thống kê + hồ sơ)
-  const [tab, setTab] = useState<"homnay" | "nhinlai">("homnay");
+  // Ba tab, mỗi tab một việc để không tab nào thành trang dài phải kéo:
+  // Hôm nay (làm việc), Nhật ký (ghi cuối ngày), Nhìn lại (thống kê).
+  const [tab, setTab] = useState<"homnay" | "nhatky" | "nhinlai">("homnay");
 
   // Phiên tập trung thu nhỏ: FocusMode vẫn mount (đồng hồ chạy tiếp), chỉ ẩn
   // giao diện và hiện thanh mini ở đáy.
@@ -788,7 +790,10 @@ export default function Dashboard({ userName, email }: { userName: string; email
       </>
       )}
 
-      {/* Tab Nhìn lại: thống kê tuần và nhật ký cuối ngày */}
+      {/* Tab Nhật ký: ghi cuối ngày và xem lại theo khoảng */}
+      {tab === "nhatky" && <ReflectionLog />}
+
+      {/* Tab Nhìn lại: thống kê */}
       {tab === "nhinlai" && <NhinLai email={email} />}
 
       {/* Thanh điều hướng đáy */}
@@ -796,6 +801,10 @@ export default function Dashboard({ userName, email }: { userName: string; email
         <button onClick={() => setTab("homnay")} aria-current={tab === "homnay" ? "page" : undefined}>
           <IcList size={17} />
           Hôm nay
+        </button>
+        <button onClick={() => setTab("nhatky")} aria-current={tab === "nhatky" ? "page" : undefined}>
+          <IcJournal size={17} />
+          Nhật ký
         </button>
         <button onClick={() => setTab("nhinlai")} aria-current={tab === "nhinlai" ? "page" : undefined}>
           <IcChart size={17} />

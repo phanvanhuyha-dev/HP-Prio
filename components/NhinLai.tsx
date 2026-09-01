@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from "react";
 import { docLoi, loiThanThien } from "@/lib/client-api";
 import { TEN_TRO_LY } from "@/lib/branding";
-import ReflectionLog from "./ReflectionLog";
 import { IcSpark } from "./icons";
 
 type ThongKe = {
@@ -88,17 +87,17 @@ export default function NhinLai({ email }: { email: string }) {
         </p>
       )}
 
-      {/* Bốn con số chính */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+      {/* Bốn con số chính. Bốn cột khi đủ rộng để đỡ chiều cao trên điện thoại. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginBottom: 12 }}>
         {[
-          [`${tongPhut}`, "phút tập trung", "var(--amber)"],
+          [`${tongPhut}`, "phút", "var(--amber)"],
           [`${tongPhien}`, "phiên", "var(--cream)"],
-          [`${tk?.xong7 ?? "–"}`, "việc đã xong", "var(--teal)"],
-          [`${tk?.quaHan ?? "–"}`, "đang quá hạn", (tk?.quaHan ?? 0) > 0 ? "var(--coral)" : "var(--cream)"]
+          [`${tk?.xong7 ?? "–"}`, "đã xong", "var(--teal)"],
+          [`${tk?.quaHan ?? "–"}`, "quá hạn", (tk?.quaHan ?? 0) > 0 ? "var(--coral)" : "var(--cream)"]
         ].map(([so, nhan, mau], i) => (
-          <div key={i} style={{ background: "var(--navy-2)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 16px" }}>
-            <div style={{ fontSize: 26, fontWeight: 700, color: mau as string, lineHeight: 1 }}>{so}</div>
-            <div className="mono" style={{ fontSize: 10.5, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: 6 }}>
+          <div key={i} style={{ background: "var(--navy-2)", border: "1px solid var(--line)", borderRadius: 12, padding: "11px 8px", textAlign: "center" }}>
+            <div style={{ fontSize: 21, fontWeight: 700, color: mau as string, lineHeight: 1 }}>{so}</div>
+            <div className="mono" style={{ fontSize: 9.5, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 5 }}>
               {nhan}
             </div>
           </div>
@@ -106,21 +105,21 @@ export default function NhinLai({ email }: { email: string }) {
       </div>
 
       {/* Biểu đồ cột giờ tập trung theo ngày, vẽ bằng div, không cần thư viện */}
-      <div style={{ background: "var(--navy-2)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 16px", marginBottom: 14 }}>
-        <div className="mono" style={{ fontSize: 10.5, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>
+      <div style={{ background: "var(--navy-2)", border: "1px solid var(--line)", borderRadius: 14, padding: "12px 14px", marginBottom: 12 }}>
+        <div className="mono" style={{ fontSize: 10.5, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
           Tập trung theo ngày
         </div>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 90 }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 74 }}>
           {ngays.map((n) => {
             const giay = giayTheoNgay.get(n.ngay) ?? 0;
-            const cao = giay > 0 ? Math.max(6, (giay / maxGiay) * 78) : 3;
+            const cao = giay > 0 ? Math.max(6, (giay / maxGiay) * 62) : 3;
             return (
               <div key={n.ngay} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                 <div
                   title={`${n.nhan}: ${Math.round(giay / 60)} phút`}
                   style={{
                     width: "100%",
-                    maxWidth: 30,
+                    maxWidth: 28,
                     height: cao,
                     borderRadius: 4,
                     background: giay > 0 ? "var(--amber)" : "var(--field)"
@@ -171,11 +170,12 @@ export default function NhinLai({ email }: { email: string }) {
       </div>
 
       {tk && tk.vuaXong.length > 0 && (
-        <div style={{ marginBottom: 6 }}>
+        <div>
           <div className="mono" style={{ fontSize: 10.5, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
             Vừa hoàn thành
           </div>
-          <ul style={{ margin: 0, paddingLeft: 18 }}>
+          {/* Chỉ danh sách này cuộn, các số liệu phía trên luôn thấy */}
+          <ul className="vung-cuon" style={{ margin: 0, paddingLeft: 18, maxHeight: "22vh" }}>
             {tk.vuaXong.map((t, i) => (
               <li key={i} style={{ fontSize: 13, color: "var(--slate)", marginBottom: 4 }}>{t}</li>
             ))}
@@ -183,9 +183,7 @@ export default function NhinLai({ email }: { email: string }) {
         </div>
       )}
 
-      <ReflectionLog />
-
-      <p className="mono" style={{ fontSize: 11, color: "var(--slate)", textAlign: "center", marginTop: 28 }}>
+      <p className="mono" style={{ fontSize: 11, color: "var(--slate)", textAlign: "center", marginTop: 22 }}>
         Đăng nhập bằng {email}
       </p>
     </div>

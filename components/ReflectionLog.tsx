@@ -106,8 +106,10 @@ export default function ReflectionLog() {
     }
   }
 
+  const dsCu = entries.filter((e) => String(e.ngay).slice(0, 10) !== homNay).slice(0, 60);
+
   return (
-    <section style={{ marginTop: 26 }} aria-labelledby="tieu-de-nhat-ky">
+    <section aria-labelledby="tieu-de-nhat-ky">
       <h2
         id="tieu-de-nhat-ky"
         className="mono"
@@ -116,35 +118,40 @@ export default function ReflectionLog() {
         Nhật ký nhìn lại
       </h2>
 
-      {/* Ghi cho hôm nay */}
-      <div style={{ background: "var(--navy-2)", border: "1px solid var(--line)", borderRadius: 14, padding: "14px 16px", marginBottom: 14 }}>
-        <div className="mono" style={{ fontSize: 10.5, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+      {/* Ghi cho hôm nay. Hai ô nằm cạnh nhau khi đủ rộng để đỡ chiều cao. */}
+      <div style={{ background: "var(--navy-2)", border: "1px solid var(--line)", borderRadius: 14, padding: "12px 14px", marginBottom: 12 }}>
+        <div className="mono" style={{ fontSize: 10.5, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
           Hôm nay · {hienNgay(homNay)}
         </div>
 
-        <label htmlFor="nk-thanh-tuu" style={{ display: "block", fontSize: 12.5, color: "var(--teal)", fontWeight: 600, marginBottom: 4 }}>
-          Thành tựu nổi bật
-        </label>
-        <textarea
-          id="nk-thanh-tuu"
-          value={thanhTuu}
-          onChange={(e) => setThanhTuu(e.target.value.slice(0, 4000))}
-          rows={2}
-          placeholder="Hôm nay điều gì đáng tự hào?"
-          style={oNhap}
-        />
-
-        <label htmlFor="nk-cai-thien" style={{ display: "block", fontSize: 12.5, color: "var(--coral)", fontWeight: 600, margin: "10px 0 4px" }}>
-          Điều cần cải thiện
-        </label>
-        <textarea
-          id="nk-cai-thien"
-          value={caiThien}
-          onChange={(e) => setCaiThien(e.target.value.slice(0, 4000))}
-          rows={2}
-          placeholder="Nếu làm lại, anh sẽ làm khác đi chỗ nào?"
-          style={oNhap}
-        />
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+            <label htmlFor="nk-thanh-tuu" style={{ display: "block", fontSize: 12, color: "var(--teal)", fontWeight: 600, marginBottom: 4 }}>
+              Thành tựu nổi bật
+            </label>
+            <textarea
+              id="nk-thanh-tuu"
+              value={thanhTuu}
+              onChange={(e) => setThanhTuu(e.target.value.slice(0, 4000))}
+              rows={2}
+              placeholder="Hôm nay điều gì đáng tự hào?"
+              style={oNhap}
+            />
+          </div>
+          <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+            <label htmlFor="nk-cai-thien" style={{ display: "block", fontSize: 12, color: "var(--coral)", fontWeight: 600, marginBottom: 4 }}>
+              Điều cần cải thiện
+            </label>
+            <textarea
+              id="nk-cai-thien"
+              value={caiThien}
+              onChange={(e) => setCaiThien(e.target.value.slice(0, 4000))}
+              rows={2}
+              placeholder="Nếu làm lại, anh sẽ làm khác chỗ nào?"
+              style={oNhap}
+            />
+          </div>
+        </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
           <button
@@ -238,34 +245,37 @@ export default function ReflectionLog() {
         </div>
       )}
 
-      {/* Log các ngày trước */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {entries
-          .filter((e) => String(e.ngay).slice(0, 10) !== homNay)
-          .slice(0, 60)
-          .map((e) => (
-            <div
-              key={String(e.ngay)}
-              style={{ background: "var(--navy-2)", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 14px" }}
-            >
-              <div className="mono" style={{ fontSize: 10.5, color: "var(--slate)", marginBottom: 5 }}>
-                {hienNgay(String(e.ngay))}
-              </div>
-              {e.thanh_tuu && (
-                <p style={{ fontSize: 13, lineHeight: 1.5, color: "var(--cream)", margin: "0 0 4px", whiteSpace: "pre-wrap" }}>
-                  <span style={{ color: "var(--teal)", fontWeight: 600 }}>+ </span>
-                  {e.thanh_tuu}
-                </p>
-              )}
-              {e.cai_thien && (
-                <p style={{ fontSize: 13, lineHeight: 1.5, color: "var(--slate)", margin: 0, whiteSpace: "pre-wrap" }}>
-                  <span style={{ color: "var(--coral)", fontWeight: 600 }}>△ </span>
-                  {e.cai_thien}
-                </p>
-              )}
+      {/* Log các ngày trước: chỉ vùng này cuộn, phần ghi và nút chọn khoảng
+          phía trên luôn đứng yên nên tab gọn trong một màn hình. */}
+      {dsCu.length > 0 && (
+        <div className="mono" style={{ fontSize: 10.5, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+          {dsCu.length} ngày đã ghi
+        </div>
+      )}
+      <div className="vung-cuon" style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: "38vh" }}>
+        {dsCu.map((e) => (
+          <div
+            key={String(e.ngay)}
+            style={{ background: "var(--navy-2)", border: "1px solid var(--line)", borderRadius: 12, padding: "10px 14px", flexShrink: 0 }}
+          >
+            <div className="mono" style={{ fontSize: 10.5, color: "var(--slate)", marginBottom: 5 }}>
+              {hienNgay(String(e.ngay))}
             </div>
-          ))}
-        {entries.filter((e) => String(e.ngay).slice(0, 10) !== homNay).length === 0 && (
+            {e.thanh_tuu && (
+              <p style={{ fontSize: 13, lineHeight: 1.5, color: "var(--cream)", margin: "0 0 4px", whiteSpace: "pre-wrap" }}>
+                <span style={{ color: "var(--teal)", fontWeight: 600 }}>+ </span>
+                {e.thanh_tuu}
+              </p>
+            )}
+            {e.cai_thien && (
+              <p style={{ fontSize: 13, lineHeight: 1.5, color: "var(--slate)", margin: 0, whiteSpace: "pre-wrap" }}>
+                <span style={{ color: "var(--coral)", fontWeight: 600 }}>△ </span>
+                {e.cai_thien}
+              </p>
+            )}
+          </div>
+        ))}
+        {dsCu.length === 0 && (
           <p style={{ fontSize: 12.5, color: "var(--slate)", margin: 0 }}>
             Chưa có dòng nhật ký nào trong {cauHinhKhoang.nhan.toLowerCase()} qua. Ghi đều mỗi cuối ngày, phần Tổng hợp sẽ càng có giá trị.
           </p>

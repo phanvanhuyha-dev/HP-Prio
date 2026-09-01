@@ -127,6 +127,15 @@ select option:hover {
   overflow-wrap: anywhere;
 }
 
+/* Vùng dữ liệu tự cuộn bên trong một tab: phần điều khiển (tiêu đề, ô ghi,
+   nút chọn khoảng) đứng yên, chỉ danh sách dài mới cuộn. Nhờ vậy mỗi tab gọn
+   trong một màn hình thay vì thành trang dài phải kéo. */
+.vung-cuon {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+}
+
 /* Khu thông báo tạm thời: MỘT chỗ cố định phía đáy cho cả "Đã lưu" lẫn
    "Hoàn tác", xếp chồng khi trùng lúc. Nằm trên thanh điều hướng và nút nổi. */
 .toast-khu {

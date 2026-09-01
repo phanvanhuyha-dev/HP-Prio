@@ -111,6 +111,15 @@ export const IcCoQuan = ({ size = 16, style }: P) => (
   </svg>
 );
 
+// Nhật ký nhìn lại cuối ngày
+export const IcJournal = ({ size = 16, style }: P) => (
+  <svg {...goc(size, style)}>
+    <path d="M5 4.5A1.5 1.5 0 016.5 3H19v14H6.5A1.5 1.5 0 005 18.5v-14z" />
+    <path d="M5 18.5A1.5 1.5 0 016.5 17H19v4H6.5A1.5 1.5 0 015 19.5z" />
+    <path d="M9 7.5h6M9 11h4" />
+  </svg>
+);
+
 // Đổi tên gọi ngay tại lời chào
 export const IcPen = ({ size = 16, style }: P) => (
   <svg {...goc(size, style)}>
