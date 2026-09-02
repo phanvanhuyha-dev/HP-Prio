@@ -122,6 +122,33 @@ const lookupAnToan: any = (hostname: string, options: any, callback: any) => {
   });
 };
 
+// Kiểm tên miền NGAY LÚC LƯU, không đợi tới lúc tải.
+//
+// Lọc theo chuỗi trong ics-url.ts không bắt được tên miền công khai trỏ về
+// địa chỉ nội bộ (localtest.me chẳng hạn). Lớp lookup bên dưới vẫn chặn nên
+// máy chủ không bao giờ gọi vào trong, nhưng nếu chỉ chặn ở đó thì người dùng
+// lưu xong thấy báo "Đã lưu" rồi lịch im lặng không bao giờ hiện. Kiểm sớm để
+// báo lỗi ngay tại chỗ nhập.
+//
+// Trả về lý do từ chối, hoặc null nếu tên miền dùng được.
+export function kiemTenMien(hostname: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    dns.lookup(hostname, { all: true, verbatim: true }, (err, dsRaw) => {
+      if (err) {
+        return resolve(`không phân giải được tên miền ${hostname}`);
+      }
+      const ds = dsRaw as unknown as Array<{ address: string }>;
+      if (!ds || ds.length === 0) return resolve(`không phân giải được tên miền ${hostname}`);
+      for (const a of ds) {
+        if (laIpNoiBo(a.address)) {
+          return resolve(`tên miền ${hostname} trỏ vào địa chỉ nội bộ ${a.address}`);
+        }
+      }
+      resolve(null);
+    });
+  });
+}
+
 // --- Tải một chặng -----------------------------------------------------------
 
 type Chang =

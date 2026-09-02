@@ -15,11 +15,14 @@ function conLaiNgay(deletedAt: string | null | undefined): number {
 export default function TrashPanel({
   soLuong,
   moiLamMoi,
-  onKhoiPhuc
+  onKhoiPhuc,
+  onDoiMo
 }: {
   soLuong: number;
   moiLamMoi: number;
   onKhoiPhuc: () => void;
+  // Báo lên Dashboard để nút nổi tự ẩn, kẻo nó đè lên nút "Xóa hẳn" ở đây
+  onDoiMo?: (mo: boolean) => void;
 }) {
   const [items, setItems] = useState<Task[]>([]);
   const [mo, setMo] = useState(false);
@@ -92,7 +95,12 @@ export default function TrashPanel({
   return (
     <section style={{ marginTop: 26 }} aria-labelledby="tieu-de-thung-rac">
       <button
-        onClick={() => setMo((v) => !v)}
+        onClick={() =>
+          setMo((v) => {
+            onDoiMo?.(!v);
+            return !v;
+          })
+        }
         aria-expanded={mo}
         style={{
           background: "none",

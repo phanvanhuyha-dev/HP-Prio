@@ -110,6 +110,11 @@ export const CAU_LENH_SCHEMA: string[] = [
      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
    )`,
 
+  // Dọn dữ liệu cũ: việc đã rời thùng rác mà vẫn đeo deleted_at. Sinh ra do
+  // nút Hoàn tác đi qua PATCH status thay vì restoreTask. Chạy lại bao nhiêu
+  // lần cũng chỉ tác dụng một lần vì điều kiện tự loại trừ.
+  `UPDATE tasks SET deleted_at = NULL WHERE status <> 'deleted' AND deleted_at IS NOT NULL`,
+
   // Lịch họp người dùng tự dán vào, mỗi ngày một dòng. Dùng khi công ty chặn
   // cả xuất bản lịch lẫn đăng ký ứng dụng Microsoft, tức mọi đường tự động
   // đều tắc. Dán lại cùng một ngày thì ghi đè, không cộng dồn.

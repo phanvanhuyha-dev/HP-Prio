@@ -50,6 +50,9 @@ export default function Dashboard({ userName, email }: { userName: string; email
   const [giaoDien, setGiaoDien] = useState<"dark" | "light">("dark");
   // Cài đặt gom về một chỗ: tên gọi, tên trợ lý, lịch họp, nhắc deadline, thoát
   const [moCaiDat, setMoCaiDat] = useState(false);
+  // Mục Đã xong hoặc Thùng rác đang bung: ẩn nút nổi để nó không đè lên các
+  // nút thao tác nằm trong đó.
+  const [panelMo, setPanelMo] = useState(false);
   const [lamMoiLich, setLamMoiLich] = useState(0);
   const [tenTroLy, setTenTroLy] = useState(TEN_TRO_LY_MAC_DINH);
   useEffect(() => {
@@ -272,8 +275,22 @@ export default function Dashboard({ userName, email }: { userName: string; email
   // Cập nhật lạc quan: đổi giao diện trước cho mượt. Khi máy chủ báo lỗi thì tải lại
   // danh sách từ server thay vì khôi phục snapshot: snapshot chụp trước request có thể
   // ghi đè một thao tác khác đã thành công trong lúc request này đang chạy.
-  async function mutate(apply: (prev: Task[]) => Task[], request: () => Promise<Response>) {
+  // demDelta: cập nhật luôn bộ đếm ở tiêu đề. Trước đây chỉ danh sách đổi
+  // ngay còn bộ đếm phải đợi lần tải lại sau, nên tiêu đề ghi "2 đã xong"
+  // trong khi mục Đã xong liệt kê 3 việc.
+  async function mutate(
+    apply: (prev: Task[]) => Task[],
+    request: () => Promise<Response>,
+    demDelta?: Record<string, number>
+  ) {
     setTasks(apply);
+    if (demDelta) {
+      setDem((d) => {
+        const moi = { ...d };
+        for (const [k, v] of Object.entries(demDelta)) moi[k] = Math.max(0, (moi[k] ?? 0) + v);
+        return moi;
+      });
+    }
     setError(null);
     try {
       const res = await request();
@@ -285,6 +302,8 @@ export default function Dashboard({ userName, email }: { userName: string; email
       // Xóa hoặc khôi phục đều làm thùng rác đổi, báo cho nó tải lại.
       setNhipLamMoi((n) => n + 1);
     } catch (e: any) {
+      // Hỏng thì tải lại từ máy chủ, vừa sửa danh sách vừa sửa lại bộ đếm
+      // đã cộng trừ lạc quan ở trên.
       await loadTasks();
       setError(loiThanThien(e));
     }
@@ -301,7 +320,8 @@ export default function Dashboard({ userName, email }: { userName: string; email
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "open" })
-        })
+        }),
+      { done: -1, open: 1 }
     );
   }
 
@@ -313,7 +333,9 @@ export default function Dashboard({ userName, email }: { userName: string; email
     setTimeout(() => setHoanTac((h) => (h?.task.id === task.id ? null : h)), 10000);
     return mutate(
       (prev) => prev.filter((t) => t.id !== task.id),
-      () => fetch(`/api/tasks/${task.id}`, { method: "DELETE" })
+      // Hàm này chỉ được gọi từ danh sách việc đang mở, nên luôn là open -> deleted
+      () => fetch(`/api/tasks/${task.id}`, { method: "DELETE" }),
+      { open: -1, deleted: 1 }
     );
   }
 
@@ -326,7 +348,8 @@ export default function Dashboard({ userName, email }: { userName: string; email
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "open" })
-        })
+        }),
+      { deleted: -1, open: 1 }
     );
   }
 
@@ -343,7 +366,8 @@ export default function Dashboard({ userName, email }: { userName: string; email
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "done" })
-        })
+        }),
+      { open: -1, done: 1 }
     );
   }
 
@@ -384,7 +408,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
     <TroLyProvider ten={tenTroLy}>
     {/* Danh sách dọc đọc thoải mái nhất trong một cột hẹp; 1040px là di sản của
         bố cục ma trận 2x2 cũ, nay thu về 680px. */}
-    <main style={{ maxWidth: 680, margin: "0 auto", padding: "24px 16px 150px" }}>
+    <main style={{ maxWidth: 680, margin: "0 auto", padding: "24px 16px 210px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 22 }}>
         <div style={{ minWidth: 0 }}>
           {/* Dòng ngày kiểu "THỨ HAI, 31/08/2026" theo mẫu tham chiếu */}
@@ -743,6 +767,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
       <DonePanel
         soLuong={dem.done ?? 0}
         moiLamMoi={nhipLamMoi}
+        onDoiMo={setPanelMo}
         onDoiTrangThai={() => {
           loadTasks();
           setNhipLamMoi((n) => n + 1);
@@ -752,6 +777,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
       <TrashPanel
         soLuong={dem.deleted ?? 0}
         moiLamMoi={nhipLamMoi}
+        onDoiMo={setPanelMo}
         onKhoiPhuc={() => {
           loadTasks();
           setNhipLamMoi((n) => n + 1);
@@ -788,7 +814,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
       )}
 
       {/* Nút nổi gọi trợ lý, thay cho ô nhập luôn chiếm màn hình chính */}
-      {tab === "homnay" && !moBeIu && !focusTask && (
+      {tab === "homnay" && !moBeIu && !focusTask && !panelMo && !moCaiDat && !daLuu && !hoanTac && (
         <button className="fab-beiu" onClick={() => setMoBeIu(true)} aria-label={`Thêm việc với ${tenTroLy}`}>
           <IcSpark size={16} /> {tenTroLy}
         </button>

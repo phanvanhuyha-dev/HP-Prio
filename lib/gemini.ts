@@ -454,6 +454,7 @@ Xác định ý định và trả về ĐÚNG MỘT JSON theo một trong bốn 
 4) Trả lời câu hỏi / phân tích (vd "hôm nay nên làm gì trước?", "tuần này có rủi ro gì?"):
 {"hanhDong":"tra-loi","traLoi":"..."}
 - Trả lời ngắn gọn, hành động rõ, dựa trên danh sách việc ở trên. Được dùng xuống dòng và gạch đầu dòng "- ".
+- Viết văn xuôi thuần, KHÔNG dùng markdown: không **in đậm**, không *nghiêng*, không ### tiêu đề. Giao diện hiện nguyên ký tự đó ra màn hình.
 
 Khi báo xong/sửa mà không xác định chắc chắn được việc nào khớp, dùng dạng 4 nói rõ em không tìm thấy và kể tên vài việc gần giống.
 Chỉ trả JSON, không thêm chữ nào khác.`;

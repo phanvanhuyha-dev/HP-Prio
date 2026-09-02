@@ -108,6 +108,10 @@ export default function ReflectionLog() {
   }
 
   const dsCu = entries.filter((e) => String(e.ngay).slice(0, 10) !== homNay).slice(0, 60);
+  // Hôm nay có dòng chưa: tính cả dòng vừa gõ mà chưa kịp tải lại từ máy chủ
+  const coHomNay =
+    entries.some((e) => String(e.ngay).slice(0, 10) === homNay) ||
+    Boolean(thanhTuu.trim() || caiThien.trim());
 
   return (
     <section aria-labelledby="tieu-de-nhat-ky">
@@ -277,8 +281,13 @@ export default function ReflectionLog() {
           </div>
         ))}
         {dsCu.length === 0 && (
+          // Dòng hôm nay nằm ở ô ghi phía trên chứ không nằm trong danh sách
+          // này, nên phải nói rõ "ngày trước đó". Bản cũ ghi "chưa có dòng
+          // nào" khiến người vừa ghi xong tưởng là mất.
           <p style={{ fontSize: 12.5, color: "var(--slate)", margin: 0 }}>
-            Chưa có dòng nhật ký nào trong {cauHinhKhoang.nhan.toLowerCase()} qua. Ghi đều mỗi cuối ngày, phần Tổng hợp sẽ càng có giá trị.
+            {coHomNay
+              ? `Hôm nay anh đã ghi, dòng đó nằm ở ô phía trên. Chưa có ngày nào khác trong ${cauHinhKhoang.nhan.toLowerCase()} qua.`
+              : `Chưa có dòng nhật ký nào trong ${cauHinhKhoang.nhan.toLowerCase()} qua. Ghi đều mỗi cuối ngày, phần Tổng hợp sẽ càng có giá trị.`}
           </p>
         )}
       </div>

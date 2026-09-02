@@ -40,6 +40,24 @@ function localInputToIso(value: string) {
 
 // Quy tắc DUY NHẤT cho việc tự điền ghi chú: giữ nguyên câu người dùng gõ,
 // trừ khi tiêu đề đã nói đúng y như vậy.
+// Model đôi lúc vẫn trả về markdown dù prompt đã dặn không. Đổi cặp ** thành
+// chữ đậm bằng phần tử React, KHÔNG dùng dangerouslySetInnerHTML, nên đây
+// không phải một đường chèn mã: mọi thứ còn lại vẫn là chữ thuần.
+function ChuDam({ text }: { text: string }) {
+  const phan = text.split("**");
+  // Số dấu ** phải chẵn thì mới là in đậm. Lẻ một dấu nghĩa là nó đứng một
+  // mình, xử lý tiếp sẽ làm cả phần đuôi câu đậm lên. Trường hợp đó giữ
+  // nguyên văn bản, thà hiện ra dấu ** còn hơn bôi đậm nhầm nửa câu.
+  if (phan.length % 2 === 0) return <>{text}</>;
+  return (
+    <>
+      {phan.map((p, i) =>
+        i % 2 === 1 ? <strong key={i}>{p}</strong> : <span key={i}>{p}</span>
+      )}
+    </>
+  );
+}
+
 function ghiChuMacDinh(cauGoc: string, tieuDe: string) {
   const chuanHoa = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
   return chuanHoa(cauGoc) === chuanHoa(tieuDe) ? "" : cauGoc.trim();
@@ -371,7 +389,7 @@ export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string)
             </button>
           </div>
           <div style={{ fontSize: 14, lineHeight: 1.6, color: "var(--cream)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-            {traLoi}
+            <ChuDam text={traLoi} />
           </div>
         </div>
       )}
@@ -386,6 +404,16 @@ export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string)
         placeholder={`Thêm việc, báo xong, sửa việc, hoặc hỏi ${TEN_TRO_LY}... vd: "Dời hạn báo cáo định biên sang thứ 6"`}
         rows={3}
         autoFocus
+        onKeyDown={(e) => {
+          // Enter gửi, Shift + Enter xuống dòng. Ô này gần như luôn dùng một
+          // câu ngắn nên bắt tay rời bàn phím đi bấm nút là thừa.
+          // isComposing: đang gõ dấu tiếng Việt bằng bộ gõ, Enter lúc đó là
+          // để chọn chữ chứ không phải để gửi.
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            if (text.trim() && !loading) void handleGui();
+          }
+        }}
         style={{
           width: "100%",
           resize: "vertical",

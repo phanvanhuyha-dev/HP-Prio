@@ -142,7 +142,10 @@ select option:hover {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  /* Ngay trên thanh điều hướng đáy. Trước đây đẩy lên 140px để né nút nổi,
+     nhưng như vậy thanh thông báo lơ lửng giữa trang. Nay nút nổi tự ẩn khi
+     có thông báo, nên chỗ này về sát đáy được. */
+  bottom: calc(66px + env(safe-area-inset-bottom, 0px));
   z-index: 50;
   width: min(560px, calc(100vw - 32px));
   display: flex;
@@ -273,6 +276,37 @@ select option:hover {
     border: 1px solid var(--line);
     max-height: 84vh;
   }
+}
+
+/* Hộp thoại dùng chung cho Cài đặt và khu dán lịch: trượt từ đáy trên điện
+   thoại, ra giữa màn hình trên máy tính. Trước đây hai chỗ này tự đặt kiểu
+   bằng style nội tuyến nên không có media query, trên máy tính hộp thoại
+   dính đáy trông như đang tụt khỏi màn hình. */
+.modal-lop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.modal-hop {
+  width: 100%;
+  max-width: 520px;
+  max-height: 88vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--navy-2);
+  border: 1px solid var(--line);
+  border-radius: 16px 16px 0 0;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+  .modal-lop { align-items: center; }
+  .modal-hop { border-radius: 16px; max-height: 84vh; }
 }
 
 /* Màn tập trung phủ toàn màn hình */

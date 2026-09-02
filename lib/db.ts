@@ -176,6 +176,10 @@ export async function updateTaskStatus(id: string, userEmail: string, status: Ta
   return chayVaTuSua(async () => {
     // done_at chỉ ghi khi chuyển sang done, xóa khi mở lại; các trạng thái khác
     // giữ nguyên để lịch sử hoàn thành không mất khi việc bị đưa vào thùng rác.
+    //
+    // deleted_at phải được dọn khi việc rời khỏi thùng rác. Nút Hoàn tác sau
+    // khi xóa đi qua đúng hàm này (PATCH status), chứ không qua restoreTask,
+    // nên trước đây việc quay lại danh sách mà vẫn đeo dấu thời điểm bị xóa.
     const { rows } = await sql<Task>`
       UPDATE tasks SET
         status = ${status},
@@ -184,6 +188,7 @@ export async function updateTaskStatus(id: string, userEmail: string, status: Ta
           WHEN ${status} = 'open' THEN NULL
           ELSE done_at
         END,
+        deleted_at = CASE WHEN ${status} = 'deleted' THEN deleted_at ELSE NULL END,
         updated_at = now()
       WHERE id = ${id} AND user_email = ${userEmail}
       RETURNING *

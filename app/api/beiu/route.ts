@@ -5,7 +5,7 @@ import { listTasks, isValidCategory, normalizeDeadline, layTenTroLyAnToan, type 
 import { routerBeIu } from "@/lib/gemini";
 import { suKienSapToi, moTaLichChoAI } from "@/lib/calendar";
 import { describeDbError, describeGeminiError, loiJson } from "@/lib/diagnostics";
-import { doanViecTuCau } from "@/lib/ngay-viet";
+import { doanViecTuCau, docNgayViet } from "@/lib/ngay-viet";
 
 // Gemini có lúc chậm, xem chú thích ở /api/parse.
 export const maxDuration = 60;
@@ -16,6 +16,24 @@ function hanVN(iso: string): string {
   // Hiển thị theo giờ Việt Nam bằng phép cộng 7 tiếng, không phụ thuộc tzdata
   const vn = new Date(d.getTime() + 7 * 3600e3);
   return `${p(vn.getUTCDate())}/${p(vn.getUTCMonth() + 1)}/${vn.getUTCFullYear()} lúc ${p(vn.getUTCHours())}:${p(vn.getUTCMinutes())}`;
+}
+
+// Ghép NGÀY của hạn mới với GIỜ của hạn cũ, tính theo giờ Việt Nam.
+// Dùng khi người dùng chỉ nói ngày: "dời sang thứ 6" không có nghĩa là đổi
+// luôn giờ họp, mà model thì hay tự điền một giờ mặc định vào đó.
+function giuGioCu(isoMoi: string, hanCu: string | Date): string {
+  const moi = new Date(new Date(isoMoi).getTime() + 7 * 3600e3);
+  const cu = new Date(new Date(hanCu as any).getTime() + 7 * 3600e3);
+  const vn = Date.UTC(
+    moi.getUTCFullYear(),
+    moi.getUTCMonth(),
+    moi.getUTCDate(),
+    cu.getUTCHours(),
+    cu.getUTCMinutes(),
+    0,
+    0
+  );
+  return new Date(vn - 7 * 3600e3).toISOString();
 }
 
 const KHONG_HIEU = {
@@ -121,7 +139,12 @@ export async function POST(req: Request) {
       capNhat.deadline = null;
       tomTat.push("Bỏ hạn chót");
     } else {
-      const h = normalizeDeadline(td.deadline);
+      let h = normalizeDeadline(td.deadline);
+      // Câu của người dùng có nói giờ không? Không nói mà việc đang có hạn thì
+      // giữ nguyên giờ cũ, chỉ đổi ngày.
+      if (h && task.deadline && !docNgayViet(text.trim())?.khopGio) {
+        h = giuGioCu(h, task.deadline as any);
+      }
       if (h) {
         capNhat.deadline = h;
         tomTat.push(`Hạn chót → ${hanVN(h)}`);

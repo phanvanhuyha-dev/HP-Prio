@@ -53,6 +53,16 @@ export default function CalendarStrip({ lamMoi = 0 }: { lamMoi?: number }) {
       .catch(() => {});
   }, [lamMoi, nhip]);
 
+  // Khóa cuộn trang nền khi khu dán lịch đang mở, xem chú thích ở CaiDat
+  useEffect(() => {
+    if (!moDan) return;
+    const cu = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = cu;
+    };
+  }, [moDan]);
+
   async function docLich() {
     setDangDoc(true);
     setLoi(null);
@@ -183,28 +193,9 @@ export default function CalendarStrip({ lamMoi = 0 }: { lamMoi?: number }) {
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setMoDan(false);
           }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 60,
-            background: "rgba(0,0,0,0.55)",
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "center"
-          }}
+          className="modal-lop"
         >
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 520,
-              maxHeight: "88vh",
-              overflowY: "auto",
-              background: "var(--navy-2)",
-              border: "1px solid var(--line)",
-              borderRadius: "16px 16px 0 0",
-              padding: "16px 16px calc(16px + env(safe-area-inset-bottom))"
-            }}
-          >
+          <div className="modal-hop">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <span
                 style={{ fontSize: 16, fontWeight: 600, color: "var(--cream)", display: "inline-flex", alignItems: "center", gap: 8 }}

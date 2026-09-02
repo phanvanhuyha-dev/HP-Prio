@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { saveTenGoi, getCaiDat, saveIcsUrls, saveTenTroLy } from "@/lib/db";
 import { chuanHoaTenTroLy, TEN_TRO_LY_MAC_DINH } from "@/lib/branding";
 import { tachDanhSachIcs, cheUrlIcs, TOI_DA_LICH } from "@/lib/ics-url";
+import { kiemTenMien } from "@/lib/tai-ics";
 import { xoaDemLich } from "@/lib/calendar";
 import { describeDbError, loiJson } from "@/lib/diagnostics";
 
@@ -103,6 +104,20 @@ export async function PATCH(req: Request) {
     }
 
     const { hopLe, loi } = tachDanhSachIcs(tho);
+
+    // Kiểm thêm ở tầng DNS: lọc theo chuỗi ở trên không bắt được tên miền
+    // công khai trỏ về máy nội bộ. Không kiểm ở đây thì người dùng lưu xong
+    // thấy báo thành công rồi lịch im lặng không bao giờ hiện, vì lúc tải
+    // mới bị chặn.
+    for (const u of hopLe) {
+      try {
+        const vd = await kiemTenMien(new URL(u).hostname);
+        if (vd) loi.push(`${cheUrlIcs(u)}: ${vd}`);
+      } catch {
+        loi.push(`${cheUrlIcs(u)}: không kiểm được tên miền`);
+      }
+    }
+
     // Có dòng sai thì KHÔNG lưu nửa vời, báo rõ dòng nào sai để sửa
     if (loi.length > 0) {
       return NextResponse.json(

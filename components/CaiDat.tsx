@@ -118,6 +118,16 @@ export default function CaiDat({
     return () => window.removeEventListener("keydown", f);
   }, [onDong]);
 
+  // Khóa cuộn trang nền khi hộp thoại đang mở. Không khóa thì lăn chuột ra
+  // ngoài hộp làm trang phía sau trôi đi, nhìn như chính hộp thoại đang trôi.
+  useEffect(() => {
+    const cu = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = cu;
+    };
+  }, []);
+
   async function luu() {
     setDangLuu(true);
     setLoi(null);
@@ -155,30 +165,9 @@ export default function CaiDat({
         // trên chính lớp phủ, tránh trường hợp kéo chuột từ trong ra ngoài
         if (e.target === e.currentTarget) onDong();
       }}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 60,
-        background: "rgba(0,0,0,0.55)",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-        padding: "0 0 env(safe-area-inset-bottom)"
-      }}
+      className="modal-lop"
     >
-      <div
-        ref={hopRef}
-        style={{
-          width: "100%",
-          maxWidth: 520,
-          maxHeight: "88vh",
-          overflowY: "auto",
-          background: "var(--navy-2)",
-          border: "1px solid var(--line)",
-          borderRadius: "16px 16px 0 0",
-          padding: "16px 16px calc(16px + env(safe-area-inset-bottom))"
-        }}
-      >
+      <div ref={hopRef} className="modal-hop">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--cream)", margin: 0 }}>Cài đặt</h2>
           <button
