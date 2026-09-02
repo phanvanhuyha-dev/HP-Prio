@@ -197,6 +197,25 @@ function nowInVietnam() {
   return { iso: `${datePart}T${timePart}+07:00`, weekday };
 }
 
+// Định dạng mốc thời gian CHO AI ĐỌC: luôn kèm +07:00.
+//
+// Trước đây gửi chuỗi UTC trần (2026-09-03T10:30) trong khi prompt lại dặn
+// "mọi mốc thời gian tính theo giờ Việt Nam". Model đọc 10:30 thành 10 rưỡi
+// sáng, lệch đúng 7 tiếng, nên mọi lời tư vấn sắp lịch đều sai buổi và khi
+// dời hạn thì trả về giờ lệch theo.
+export function gioVietChoAI(value: unknown): string | null {
+  if (!value) return null;
+  const d = new Date(value as any);
+  if (Number.isNaN(d.getTime())) return null;
+  // VN không có giờ mùa hè nên cộng 7 tiếng là đủ, không cần tzdata
+  const vn = new Date(d.getTime() + 7 * 3600e3);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${vn.getUTCFullYear()}-${p(vn.getUTCMonth() + 1)}-${p(vn.getUTCDate())}` +
+    `T${p(vn.getUTCHours())}:${p(vn.getUTCMinutes())}+07:00`
+  );
+}
+
 const SYSTEM_PROMPT = `Bạn là "{{TRO_LY}}", trợ lý phân tích công việc cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam.
 Nhiệm vụ: đọc câu mô tả công việc (tiếng Việt, có thể là giọng nói được chuyển thành text, văn phong tự nhiên/không đầy đủ),
 và trả về JSON với các trường:
@@ -271,11 +290,7 @@ export async function breakdownTask(
   // QUAN TRỌNG: driver Postgres trả cột TIMESTAMPTZ về dạng ĐỐI TƯỢNG Date chứ
   // không phải chuỗi (kiểu Task chỉ đúng sau khi qua JSON). Gọi .slice() thẳng
   // trên t.deadline từng làm route này chết với TypeError cho mọi việc có hạn.
-  const han = (() => {
-    if (!t.deadline) return "chưa có";
-    const d = new Date(t.deadline as any);
-    return Number.isNaN(d.getTime()) ? "chưa có" : d.toISOString().slice(0, 16);
-  })();
+  const han = gioVietChoAI(t.deadline) ?? "chưa có";
 
   // Tiêu đề và ghi chú là dữ liệu người dùng nhập, dùng function replacer để
   // các mẫu $&, $' trong đó không bị String.replace diễn giải (xem routerBeIu).
@@ -429,7 +444,8 @@ export async function tongHopNhatKy(
 const ROUTER_PROMPT = `Bạn là "{{TRO_LY}}", trợ lý công việc riêng cho một Trưởng phòng Nhân sự cấp cao tại Việt Nam. Xưng "em", gọi người dùng là "anh". Giọng chuyên môn thẳng thắn, không nũng nịu.
 Bây giờ là {{WEEKDAY}}, {{TODAY}} (giờ Việt Nam, UTC+7).
 
-Danh sách việc đang mở của anh (JSON: id, title, category, deadline, urgent, important):
+Danh sách việc đang mở của anh (JSON: id, title, category, deadline, urgent, important).
+Trường deadline đã kèm +07:00, tức là GIỜ VIỆT NAM, đọc thẳng ra không phải quy đổi gì thêm:
 {{TASKS}}
 
 Lịch họp hôm nay của anh (để cân nhắc khi tư vấn, KHÔNG phải việc trong danh sách):

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { listTasks, isValidCategory, normalizeDeadline, layTenTroLyAnToan, type Task } from "@/lib/db";
-import { routerBeIu } from "@/lib/gemini";
+import { routerBeIu, gioVietChoAI } from "@/lib/gemini";
 import { suKienSapToi, moTaLichChoAI } from "@/lib/calendar";
 import { describeDbError, describeGeminiError, loiJson } from "@/lib/diagnostics";
 import { doanViecTuCau, docNgayViet } from "@/lib/ngay-viet";
@@ -76,7 +76,9 @@ export async function POST(req: Request) {
     id: t.id,
     title: t.title,
     category: t.category,
-    deadline: t.deadline ? new Date(t.deadline as any).toISOString().slice(0, 16) : null,
+    // Kèm +07:00: prompt dặn model tính theo giờ Việt Nam, gửi UTC trần vào
+    // đây thì mọi câu tư vấn của nó lệch đúng 7 tiếng.
+    deadline: gioVietChoAI(t.deadline),
     urgent: t.user_urgent,
     important: t.user_important
   }));

@@ -146,7 +146,10 @@ select option:hover {
      nhưng như vậy thanh thông báo lơ lửng giữa trang. Nay nút nổi tự ẩn khi
      có thông báo, nên chỗ này về sát đáy được. */
   bottom: calc(66px + env(safe-area-inset-bottom, 0px));
-  z-index: 50;
+  /* Trên cả hộp thoại (60) và màn tập trung (60): thông báo và nút Hoàn tác
+     phải đọc được kể cả khi đang mở Cài đặt, nếu không nó nằm khuất phía sau
+     và người dùng tưởng bấm không ăn. */
+  z-index: 70;
   width: min(560px, calc(100vw - 32px));
   display: flex;
   flex-direction: column;
