@@ -113,7 +113,11 @@ const lookupAnToan: any = (hostname: string, options: any, callback: any) => {
     // một tên miền vừa trỏ ra ngoài vừa trỏ vào trong là dấu hiệu cố tình.
     for (const a of ds) {
       if (laIpNoiBo(a.address)) {
-        return cb(new Error(`Tên miền ${hostname} trỏ vào địa chỉ nội bộ ${a.address}`));
+        const e: any = new Error(`Tên miền ${hostname} trỏ vào địa chỉ nội bộ ${a.address}`);
+        // Đánh dấu để nơi gọi phân biệt "chặn vì an toàn" với "mạng trục
+        // trặc". Hai loại này phải xử lý khác nhau ở màn hình Cài đặt.
+        e.baoMat = true;
+        return cb(e);
       }
     }
 
@@ -217,6 +221,11 @@ function taiMotChang(url: string, conLai: number): Promise<Chang> {
 
 // --- Cửa vào -----------------------------------------------------------------
 
+// Lỗi có cờ này nghĩa là BỊ CHẶN VÌ AN TOÀN, không phải mạng trục trặc.
+export function laLoiBaoMat(err: unknown): boolean {
+  return Boolean((err as any)?.baoMat);
+}
+
 export async function taiIcs(urlBanDau: string): Promise<string> {
   const het = Date.now() + HAN_MS;
   let url = urlBanDau;
@@ -225,7 +234,11 @@ export async function taiIcs(urlBanDau: string): Promise<string> {
     // Kiểm lại MỖI chặng, không chỉ chặng đầu: đích chuyển hướng là địa chỉ
     // do máy chủ bên kia tự chọn nên đáng ngờ y như địa chỉ người dùng nhập.
     const kq = kiemTraUrlIcs(url);
-    if (!kq.ok) throw new Error(`Chặng ${i + 1}: ${kq.loi}`);
+    if (!kq.ok) {
+      const e: any = new Error(i === 0 ? kq.loi : `Chặng ${i + 1}: ${kq.loi}`);
+      e.baoMat = true;
+      throw e;
+    }
 
     const conLai = het - Date.now();
     if (conLai <= 0) throw new Error("Tải lịch quá lâu");

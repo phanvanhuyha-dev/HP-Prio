@@ -4,11 +4,13 @@ import { authOptions } from "@/lib/auth";
 import { saveTenGoi, getCaiDat, saveIcsUrls, saveTenTroLy } from "@/lib/db";
 import { chuanHoaTenTroLy, TEN_TRO_LY_MAC_DINH } from "@/lib/branding";
 import { tachDanhSachIcs, cheUrlIcs, TOI_DA_LICH } from "@/lib/ics-url";
-import { kiemTenMien } from "@/lib/tai-ics";
+import { kiemTenMien, taiIcs, laLoiBaoMat } from "@/lib/tai-ics";
 import { xoaDemLich } from "@/lib/calendar";
 import { describeDbError, loiJson } from "@/lib/diagnostics";
 
 export const dynamic = "force-dynamic";
+// Lưu lịch có thử tải thật, mỗi liên kết tối đa 8 giây và chạy song song
+export const maxDuration = 60;
 
 // Cấu hình của riêng người đang đăng nhập. Lưu máy chủ để mọi thiết bị
 // (web, iPhone) cùng thấy, thay vì localStorage theo từng máy như trước.
@@ -105,18 +107,44 @@ export async function PATCH(req: Request) {
 
     const { hopLe, loi } = tachDanhSachIcs(tho);
 
-    // Kiểm thêm ở tầng DNS: lọc theo chuỗi ở trên không bắt được tên miền
-    // công khai trỏ về máy nội bộ. Không kiểm ở đây thì người dùng lưu xong
-    // thấy báo thành công rồi lịch im lặng không bao giờ hiện, vì lúc tải
-    // mới bị chặn.
-    for (const u of hopLe) {
-      try {
-        const vd = await kiemTenMien(new URL(u).hostname);
-        if (vd) loi.push(`${cheUrlIcs(u)}: ${vd}`);
-      } catch {
-        loi.push(`${cheUrlIcs(u)}: không kiểm được tên miền`);
-      }
-    }
+    // THỬ TẢI THẬT ngay lúc lưu, chạy song song để không cộng dồn thời gian.
+    //
+    // Lọc theo chuỗi và kiểm DNS ở trên chỉ soi được đúng địa chỉ người dùng
+    // gõ. Một địa chỉ công khai trả về chuyển hướng vào mạng nội bộ thì hai
+    // lớp đó đều cho qua, và tuy taiIcs vẫn chặn ở từng chặng nên không có rò
+    // rỉ, người dùng lại thấy báo "Đã lưu" rồi lịch im lặng không hiện.
+    //
+    // Thử tải một lần biến lớp phòng thủ đó thành thứ nhìn thấy được, đồng
+    // thời bắt luôn liên kết gõ sai, liên kết đã bị thu hồi, và địa chỉ không
+    // phải lịch.
+    const canhBao: string[] = [];
+    await Promise.all(
+      hopLe.map(async (u) => {
+        const ten = cheUrlIcs(u);
+        try {
+          const vd = await kiemTenMien(new URL(u).hostname);
+          if (vd) {
+            loi.push(`${ten}: ${vd}`);
+            return;
+          }
+        } catch {
+          loi.push(`${ten}: không kiểm được tên miền`);
+          return;
+        }
+
+        try {
+          const noiDung = await taiIcs(u);
+          if (!noiDung.includes("BEGIN:VCALENDAR")) {
+            canhBao.push(`${ten}: tải được nhưng nội dung không phải lịch iCal`);
+          }
+        } catch (err: any) {
+          // Bị chặn vì an toàn thì TỪ CHỐI lưu. Hỏng vì mạng hay máy chủ bên
+          // kia thì vẫn lưu và chỉ nhắc, vì lỗi đó có thể chỉ là nhất thời.
+          if (laLoiBaoMat(err)) loi.push(`${ten}: ${err.message}`);
+          else canhBao.push(`${ten}: ${err?.message ?? "chưa tải được"}`);
+        }
+      })
+    );
 
     // Có dòng sai thì KHÔNG lưu nửa vời, báo rõ dòng nào sai để sửa
     if (loi.length > 0) {
@@ -136,6 +164,9 @@ export async function PATCH(req: Request) {
       xoaDemLich(session.user.email);
       ketQua.icsUrls = hopLe;
       ketQua.icsChe = hopLe.map(cheUrlIcs);
+      // Lưu được nhưng chưa tải được: vẫn báo cho người dùng biết thay vì để
+      // họ tưởng xong rồi ngồi đợi lịch không bao giờ hiện.
+      if (canhBao.length > 0) ketQua.canhBao = canhBao.join(" | ");
     } catch (err) {
       return loiJson(describeDbError(err), "settings");
     }

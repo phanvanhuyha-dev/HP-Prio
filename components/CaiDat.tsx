@@ -147,6 +147,12 @@ export default function CaiDat({
         tenTroLy: typeof d.tenTroLy === "string" && d.tenTroLy ? d.tenTroLy : TEN_TRO_LY_MAC_DINH,
         lichDoi
       });
+      // Đã lưu nhưng có liên kết lịch chưa tải được: giữ hộp thoại mở và nói
+      // rõ tại chỗ. Đóng rồi mới báo thì người dùng không biết sửa dòng nào.
+      if (typeof d.canhBao === "string" && d.canhBao) {
+        setLoi(`Đã lưu, nhưng chưa tải được lịch. ${d.canhBao}`);
+        return;
+      }
       onDong();
     } catch (e: any) {
       setLoi(e.message ?? "Không lưu được");
