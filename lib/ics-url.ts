@@ -55,6 +55,21 @@ export function kiemTraUrlIcs(raw: string): KetQuaKiemTra {
     return { ok: false, loi: "Liên kết trỏ vào địa chỉ nội bộ nên bị từ chối" };
   }
 
+  // Bẫy hay gặp nhất: Google Calendar có hai loại liên kết trông na ná nhau.
+  // Loại "cid=..." là để MỞ LỊCH TRONG TRÌNH DUYỆT, nó trả về trang HTML.
+  // Loại đọc được dữ liệu nằm ở đường dẫn /calendar/ical/.../basic.ics và
+  // luôn kèm một chuỗi bí mật dài. Bắt sớm ở đây để không phải đợi tới lúc
+  // tải về mới biết, và nói rõ chỗ lấy liên kết đúng.
+  if (host === "calendar.google.com" && !u.pathname.startsWith("/calendar/ical/")) {
+    return {
+      ok: false,
+      loi:
+        "đây là liên kết mở lịch trong trình duyệt, không phải địa chỉ iCal. " +
+        "Anh vào Google Calendar, Cài đặt, chọn đúng lịch ở cột trái, mục Tích hợp lịch, " +
+        "rồi copy dòng Địa chỉ bí mật ở định dạng iCal, dòng đó kết thúc bằng basic.ics"
+    };
+  }
+
   return { ok: true, url: u.toString() };
 }
 
