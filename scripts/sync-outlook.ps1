@@ -1,10 +1,10 @@
-<#
+﻿<#
 .SYNOPSIS
-    Tự động đọc lịch họp hôm nay và ngày mai từ Outlook Classic (MAPI COM) và đẩy lên HP Prio.
+    Tu dong doc lich hop hom nay va ngay mai tu Outlook Classic (MAPI COM) va day len HP Prio.
 .DESCRIPTION
-    Script kết nối trực tiếp vào ứng dụng Outlook trên máy tính qua giao diện COM,
-    không cần xin quyền Microsoft Entra ID hay mở tính năng Calendar Publishing.
-    Có thể chạy thủ công hoặc kích hoạt tự động qua Windows Task Scheduler.
+    Script ket noi truc tiep vao ung dung Outlook tren may tinh qua giao dien COM,
+    khong can xin quyen Microsoft Entra ID hay mo tinh nang Calendar Publishing.
+    Co the chay thu cong hoac kich hoat tu dong qua Windows Task Scheduler.
 #>
 
 param(
@@ -29,7 +29,7 @@ function Write-Log {
     } catch {}
 }
 
-# 1. Đọc cấu hình từ file json nếu không truyền tham số
+# 1. Doc cau hinh tu file json neu khong truyen tham so
 if (-not $AppUrl -or -not $SyncToken) {
     if (Test-Path $configFile) {
         try {
@@ -37,45 +37,45 @@ if (-not $AppUrl -or -not $SyncToken) {
             if (-not $AppUrl -and $cfg.appUrl) { $AppUrl = $cfg.appUrl }
             if (-not $SyncToken -and $cfg.syncToken) { $SyncToken = $cfg.syncToken }
         } catch {
-            Write-Log "CẢNH BÁO: Không đọc được file cấu hình sync-config.json: $($_.Exception.Message)"
+            Write-Log "CANH BAO: Khong doc duoc file cau hinh sync-config.json: $($_.Exception.Message)"
         }
     }
 }
 
-# Chuẩn hóa URL
+# Chuan hoa URL
 if (-not $AppUrl) {
-    Write-Log "LỖI: Chưa cung cấp AppUrl. Vui lòng cấu hình trong scripts/sync-config.json hoặc truyền qua tham số -AppUrl"
+    Write-Log "LOI: Chua cung cap AppUrl. Vui long cau hinh trong scripts/sync-config.json hoac truyen qua tham so -AppUrl"
     exit 1
 }
 $AppUrl = $AppUrl.TrimEnd('/')
 $endpoint = "$AppUrl/api/calendar/sync"
 
 if (-not $SyncToken) {
-    Write-Log "LỖI: Chưa cung cấp SyncToken. Vui lòng cấu hình trong scripts/sync-config.json hoặc truyền qua tham số -SyncToken"
+    Write-Log "LOI: Chua cung cap SyncToken. Vui long cau hinh trong scripts/sync-config.json hoac truyen qua tham so -SyncToken"
     exit 1
 }
 
-Write-Log "Bắt đầu quét lịch họp từ Outlook Classic..."
+Write-Log "Bat dau quet lich hop tu Outlook Classic..."
 
-# 2. Kết nối Outlook qua COM
+# 2. Ket noi Outlook qua COM
 $outlook = $null
 try {
     $outlook = New-Object -ComObject Outlook.Application
 } catch {
-    Write-Log "LỖI: Không thể khởi tạo đối tượng Outlook.Application COM: $($_.Exception.Message)"
+    Write-Log "LOI: Khong the khoi tao doi tuong Outlook.Application COM: $($_.Exception.Message)"
     exit 1
 }
 
 $namespace = $outlook.GetNamespace("MAPI")
 
-# Tìm thư mục Lịch (ưu tiên tài khoản email công ty)
+# Tim thu muc Lich (uu tien tai khoan email cong ty)
 $calFolder = $null
 foreach ($f in $namespace.Folders) {
     try {
         $candidate = $f.Folders.Item("Calendar")
         if ($null -ne $candidate -and $candidate.Items.Count -gt 0) {
             $calFolder = $candidate
-            Write-Log "Đã chọn thư mục Lịch của tài khoản: $($f.Name)"
+            Write-Log "Da chon thu muc Lich cua tai khoan: $($f.Name)"
             break
         }
     } catch {}
@@ -84,9 +84,9 @@ foreach ($f in $namespace.Folders) {
 if ($null -eq $calFolder) {
     try {
         $calFolder = $namespace.GetDefaultFolder(9) # 9 = olFolderCalendar
-        Write-Log "Đã chọn thư mục Lịch mặc định của hệ thống"
+        Write-Log "Da chon thu muc Lich mac dinh cua he thong"
     } catch {
-        Write-Log "LỖI: Không tìm thấy thư mục Lịch nào trong Outlook"
+        Write-Log "LOI: Khong tim thay thu muc Lich nao trong Outlook"
         exit 1
     }
 }
@@ -95,14 +95,13 @@ $items = $calFolder.Items
 $items.IncludeRecurrences = $true
 $items.Sort("[Start]")
 
-# Xác định khung thời gian: Từ 00:00 hôm nay đến 23:59 ngày mai (giờ địa phương)
+# Khung thoi gian: Tu 00:00 hom nay den 23:59 ngay mai
 $today = (Get-Date).Date
 $tomorrowEnd = $today.AddDays(2).AddSeconds(-1)
 
-# Thử lọc bằng Restrict của MAPI
 $matchedItems = @()
-$filtered = $null
 
+# Thu loc bang Restrict cua MAPI voi dinh dang Jet date
 $jetDate1 = $today.ToString("dd-MMM-yy 00:00")
 $jetDate2 = $tomorrowEnd.ToString("dd-MMM-yy 23:59")
 try {
@@ -111,10 +110,10 @@ try {
         $matchedItems += $item
     }
 } catch {
-    Write-Log "Không dùng được bộ lọc Restrict, chuyển sang duyệt tuần tự: $($_.Exception.Message)"
+    Write-Log "Khong dung duoc bo loc Restrict, chuyen sang duyet tuan tu: $($_.Exception.Message)"
 }
 
-# Nếu Restrict trả về 0 sự kiện, duyệt tuần tự để đảm bảo không sót do lệch định dạng ngày
+# Neu Restrict tra ve 0, duyet tuan tu de tranh lech gio he thong
 if ($matchedItems.Count -eq 0) {
     $matchedItems = @()
     foreach ($item in $items) {
@@ -122,21 +121,20 @@ if ($matchedItems.Count -eq 0) {
             if ($item.Start -ge $today -and $item.Start -le $tomorrowEnd) {
                 $matchedItems += $item
             } elseif ($item.Start -gt $tomorrowEnd) {
-                # Danh sách đã sort theo Start, nếu vượt quá ngày mai thì dừng
                 break
             }
         } catch {}
     }
 }
 
-Write-Log "Tìm thấy $($matchedItems.Count) cuộc họp trong hôm nay và ngày mai"
+Write-Log "Tim thay $($matchedItems.Count) cuoc hop trong hom nay va ngay mai"
 
-# Chuẩn bị dữ liệu gửi đi
+# Chuan bi du lieu gui di
 $payloadEvents = @()
 foreach ($item in $matchedItems) {
     try {
         $subj = [string]$item.Subject
-        if ([string]::IsNullOrWhiteSpace($subj)) { $subj = "(Cuộc họp không có tiêu đề)" }
+        if ([string]::IsNullOrWhiteSpace($subj)) { $subj = "(Cuoc hop khong co tieu de)" }
 
         # Convert sang UTC ISO 8601
         $startUtc = $item.Start.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
@@ -149,9 +147,10 @@ foreach ($item in $matchedItems) {
             ketThuc = $endUtc
             caNgay  = $allDay
         }
-        Write-Log "  - [$($item.Start.ToString('dd/MM HH:mm'))] $subj"
+        $startStr = $item.Start.ToString("dd/MM HH:mm")
+        Write-Log "  - [$startStr] $subj"
     } catch {
-        Write-Log "  Bỏ qua 1 mục lỗi: $($_.Exception.Message)"
+        Write-Log "  Bo qua 1 muc loi: $($_.Exception.Message)"
     }
 }
 
@@ -159,20 +158,27 @@ $bodyJson = @{
     suKien = $payloadEvents
 } | ConvertTo-Json -Depth 3
 
-# Gửi HTTP POST lên HP Prio
-Write-Log "Đang gửi dữ liệu lên endpoint: $endpoint..."
+# Gui HTTP POST len HP Prio
+Write-Log "Dang gui du lieu len endpoint: $endpoint..."
 try {
     $headers = @{
         "Authorization" = "Bearer $SyncToken"
         "Content-Type"  = "application/json; charset=utf-8"
     }
     
-    $response = Invoke-RestMethod -Uri $endpoint -Method POST -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($bodyJson))
-    Write-Log "ĐỒNG BỘ THÀNH CÔNG! Kết quả máy chủ: Số lượng = $($response.soLuong), Ngày = $($response.cacNgay -join ', ')"
+    $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($bodyJson)
+    $response = Invoke-RestMethod -Uri $endpoint -Method POST -Headers $headers -Body $bodyBytes
+    
+    $soLuong = $response.soLuong
+    $cacNgayStr = ""
+    if ($response.cacNgay) {
+        $cacNgayStr = [string]::Join(", ", $response.cacNgay)
+    }
+    Write-Log "DONG BO THANH CONG! So luong = $soLuong, Cac ngay = $cacNgayStr"
 } catch {
-    Write-Log "LỖI KHI GỌI API HP PRIO: $($_.Exception.Message)"
+    Write-Log "LOI KHI GOI API HP PRIO: $($_.Exception.Message)"
     if ($_.ErrorDetails.Message) {
-        Write-Log "Chi tiết lỗi: $($_.ErrorDetails.Message)"
+        Write-Log "Chi tiet loi: $($_.ErrorDetails.Message)"
     }
     exit 1
 }
