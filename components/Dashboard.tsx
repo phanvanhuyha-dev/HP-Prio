@@ -378,7 +378,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
 
   function handleReclassify(
     id: string,
-    patch: { userUrgent?: boolean; userImportant?: boolean; notes?: string | null }
+    patch: { title?: string; userUrgent?: boolean; userImportant?: boolean; notes?: string | null }
   ) {
     return mutate(
       (prev) =>
@@ -386,6 +386,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
           t.id === id
             ? {
                 ...t,
+                title: patch.title ?? t.title,
                 user_urgent: patch.userUrgent ?? t.user_urgent,
                 user_important: patch.userImportant ?? t.user_important,
                 // notes có thể là null (xóa trắng) nên phải dùng "in", không dùng ??

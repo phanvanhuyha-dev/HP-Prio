@@ -4,7 +4,7 @@ import NotesView from "./NotesView";
 import { demBuoc, themBuocVaoGhiChu } from "@/lib/checklist";
 import { docLoi, loiThanThien, rung } from "@/lib/client-api";
 import { useTenTroLy } from "./TroLy";
-import { IcSpark, IcHome, IcCoQuan, IcPlay } from "./icons";
+import { IcSpark, IcHome, IcCoQuan, IcPlay, IcPen } from "./icons";
 
 export type Task = {
   id: string;
@@ -19,7 +19,12 @@ export type Task = {
   user_important: boolean;
 };
 
-type ReclassifyPatch = { userUrgent?: boolean; userImportant?: boolean; notes?: string | null };
+type ReclassifyPatch = {
+  title?: string;
+  userUrgent?: boolean;
+  userImportant?: boolean;
+  notes?: string | null;
+};
 
 // Bốn nhóm Eisenhower giữ nguyên ngữ nghĩa, nhưng thể hiện bằng CHẤM MÀU và
 // nhãn trên từng dòng thay vì bốn ô chia màn hình. Danh sách dọc đỡ tốn không
@@ -112,6 +117,20 @@ function TaskRow({
   const [nhap, setNhap] = useState("");
   const [dangChia, setDangChia] = useState(false);
   const [loiChia, setLoiChia] = useState<string | null>(null);
+  const [suaTen, setSuaTen] = useState(false);
+  const [tenNhap, setTenNhap] = useState("");
+
+  function luuTen() {
+    const ten = tenNhap.trim();
+    // Tên rỗng thì bỏ qua chứ không lưu: một việc không tên là việc không tìm
+    // lại được, mà cũng không có nút nào để đặt lại tên cho nó.
+    if (!ten || ten === task.title) {
+      setSuaTen(false);
+      return;
+    }
+    onReclassify(task.id, { title: ten });
+    setSuaTen(false);
+  }
 
   // Nhờ AI chia việc thành các bước. Kết quả KHÔNG lưu thẳng: đổ vào ô sửa
   // ghi chú để duyệt rồi mới lưu, đúng nguyên tắc "AI đề xuất, anh duyệt".
@@ -229,6 +248,64 @@ function TaskRow({
 
       {moRong && (
         <div style={{ marginTop: 10, paddingLeft: 19, display: "flex", flexDirection: "column", gap: 10 }}>
+          {/* Sửa tên việc. Trước đây chỉ đổi được qua trợ lý, mà đổi một cái
+              tên thì không đáng phải gọi AI. */}
+          {suaTen ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <input
+                value={tenNhap}
+                autoFocus
+                onChange={(e) => setTenNhap(e.target.value.slice(0, 500))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) luuTen();
+                  if (e.key === "Escape") setSuaTen(false);
+                }}
+                aria-label="Tên công việc"
+                style={{
+                  width: "100%",
+                  background: "var(--field)",
+                  border: "1px solid var(--amber)",
+                  borderRadius: 8,
+                  padding: "9px 10px",
+                  color: "var(--cream)",
+                  fontSize: 14.5,
+                  fontWeight: 500,
+                  fontFamily: "var(--font-body)",
+                  minHeight: 42
+                }}
+              />
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  onClick={luuTen}
+                  disabled={!tenNhap.trim()}
+                  style={{
+                    ...nutNho,
+                    background: "var(--amber)",
+                    color: "var(--navy)",
+                    border: "none",
+                    fontWeight: 600,
+                    opacity: tenNhap.trim() ? 1 : 0.5
+                  }}
+                >
+                  Lưu tên
+                </button>
+                <button onClick={() => setSuaTen(false)} style={nutNho}>
+                  Hủy
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setTenNhap(task.title);
+                setSuaTen(true);
+              }}
+              style={{ ...nutNho, display: "inline-flex", alignItems: "center", gap: 6, alignSelf: "flex-start" }}
+            >
+              <IcPen size={12} /> Sửa tên việc
+            </button>
+          )}
+
           {dangSua ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <textarea
