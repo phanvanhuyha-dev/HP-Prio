@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Tự động đăng ký tác vụ chạy định kỳ vào Windows Task Scheduler cho HP Prio.
+    Tu dong dang ky tac vu chay dinh ky vao Windows Task Scheduler cho HP Prio.
 .DESCRIPTION
-    Tạo tác vụ chạy lúc 8:00 sáng mỗi ngày và mỗi khi đăng nhập vào Windows.
-    Kịch bản chạy ẩn dưới nền (WindowStyle Hidden) không làm gián đoạn công việc.
+    Tao tac vu chay luc 8:00 sang moi ngay va moi khi dang nhap vao Windows.
+    Kich ban chay an duoi nen (WindowStyle Hidden) khong lam gian doan cong viec.
 #>
 
 param(
@@ -15,33 +15,34 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $targetScript = Join-Path $scriptDir "sync-outlook.ps1"
 
 if ($GoBo) {
-    Write-Host "Đang gỡ bỏ tác vụ '$taskName'..." -ForegroundColor Yellow
+    Write-Host "Dang go bo tac vu '$taskName'..." -ForegroundColor Yellow
     try {
         Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
-        Write-Host "Đã gỡ bỏ tác vụ thành công!" -ForegroundColor Green
+        Write-Host "Da go bo tac vu thanh cong!" -ForegroundColor Green
     } catch {
-        Write-Host "Lỗi hoặc tác vụ không tồn tại: $($_.Exception.Message)" -ForegroundColor Red
+        $msg = $_.Exception.Message
+        Write-Host "Loi hoac tac vu khong ton tai: $msg" -ForegroundColor Red
     }
     exit 0
 }
 
-Write-Host "=== Cài đặt lịch tự động đồng bộ Outlook sang HP Prio ===" -ForegroundColor Cyan
+Write-Host "=== Cai dat lich tu dong dong bo Outlook sang HP Prio ===" -ForegroundColor Cyan
 
 if (-not (Test-Path $targetScript)) {
-    Write-Host "LỖI: Không tìm thấy file script tại: $targetScript" -ForegroundColor Red
+    Write-Host "LOI: Khong tim thay file script tai: $targetScript" -ForegroundColor Red
     exit 1
 }
 
-# 1. Hành động: Chạy powershell với cờ ẩn cửa sổ
+# 1. Hanh dong: Chay powershell voi co an cua so
 $action = New-ScheduledTaskAction `
     -Execute "powershell.exe" `
     -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$targetScript`""
 
-# 2. Bộ kích hoạt: 8:00 sáng mỗi ngày + Khi người dùng đăng nhập
+# 2. Bo kich hoat: 8:00 sang moi ngay + Khi nguoi dung dang nhap
 $triggerDaily = New-ScheduledTaskTrigger -Daily -At "08:00"
 $triggerLogon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 
-# 3. Cài đặt tác vụ: Cho phép chạy bằng pin, thức dậy để chạy
+# 3. Cai dat tac vu: Cho phep chay bang pin, chay ngay khi kha dung
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
@@ -49,25 +50,26 @@ $settings = New-ScheduledTaskSettingsSet `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
 
 try {
-    # Hủy tác vụ cũ nếu đã có
+    # Huy tac vu cu neu da co
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 
-    # Đăng ký tác vụ mới
+    # Dang ky tac vu moi
     Register-ScheduledTask `
         -TaskName $taskName `
         -Action $action `
         -Trigger @($triggerDaily, $triggerLogon) `
         -Settings $settings `
-        -Description "Tự động đồng bộ lịch họp Outlook Classic sang HP Prio" `
+        -Description "Tu dong dong bo lich hop Outlook Classic sang HP Prio" `
         -ErrorAction Stop | Out-Null
 
-    Write-Host "ĐÃ ĐĂNG KÝ TÁC VỤ THÀNH CÔNG!" -ForegroundColor Green
-    Write-Host "- Tên tác vụ: $taskName"
-    Write-Host "- Thời gian chạy: 8:00 sáng mỗi ngày VÀ mỗi khi mở máy đăng nhập"
-    Write-Host "- Lệnh thực thi: powershell.exe -File `"$targetScript`""
+    Write-Host "DA DANG KY TAC VU THANH CONG!" -ForegroundColor Green
+    Write-Host "- Ten tac vu: $taskName"
+    Write-Host "- Thoi gian chay: 8:00 sang moi ngay VA moi khi mo may dang nhap"
+    Write-Host "- Lenh thuc thi: powershell.exe -File `"$targetScript`""
     Write-Host ""
-    Write-Host "Để kiểm tra hoặc chạy thử ngay, anh có thể mở Task Scheduler hoặc chạy lệnh:" -ForegroundColor Yellow
+    Write-Host "De chay thu ngay tac vu nen, anh co the chay lenh:" -ForegroundColor Yellow
     Write-Host "Start-ScheduledTask -TaskName `"$taskName`"" -ForegroundColor White
 } catch {
-    Write-Host "LỖI KHI ĐĂNG KÝ TÁC VỤ: $($_.Exception.Message)" -ForegroundColor Red
+    $errMsg = $_.Exception.Message
+    Write-Host "LOI KHI DANG KY TAC VU: $errMsg" -ForegroundColor Red
 }
