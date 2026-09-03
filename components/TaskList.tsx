@@ -183,7 +183,34 @@ function TaskRow({
           }}
         />
 
-        {/* Bấm vào phần chữ để mở chi tiết: ghi chú, các bước, đổi ưu tiên, xóa */}
+        {/* Đang sửa tên thì chính dòng tiêu đề biến thành ô nhập, sửa tại chỗ
+            chứ không nhảy xuống một ô khác bên dưới. */}
+        {suaTen ? (
+          <input
+            value={tenNhap}
+            autoFocus
+            onChange={(e) => setTenNhap(e.target.value.slice(0, 500))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) luuTen();
+              if (e.key === "Escape") setSuaTen(false);
+            }}
+            aria-label="Tên công việc"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              background: "var(--field)",
+              border: "1px solid var(--amber)",
+              borderRadius: 8,
+              padding: "7px 9px",
+              color: "var(--cream)",
+              fontSize: 14.5,
+              fontWeight: 500,
+              fontFamily: "var(--font-body)",
+              minHeight: 38
+            }}
+          />
+        ) : (
+        /* Bấm vào phần chữ để mở chi tiết: ghi chú, các bước, đổi ưu tiên, xóa */
         <button
           onClick={() => setMoRong((v) => !v)}
           aria-expanded={moRong}
@@ -223,8 +250,25 @@ function TaskRow({
             <span aria-hidden="true">{moRong ? "▴" : "▾"}</span>
           </div>
         </button>
+        )}
 
         <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+          {/* Cây bút chỉ hiện khi đã bung chi tiết: danh sách thu gọn không
+              cần thêm một icon trên mỗi dòng. */}
+          {moRong && !suaTen && (
+            <button
+              onClick={() => {
+                setTenNhap(task.title);
+                setSuaTen(true);
+              }}
+              title="Sửa tên việc"
+              aria-label={`Sửa tên việc: ${task.title}`}
+              className="tap"
+              style={{ background: "none", border: "none", color: "var(--slate)", padding: 0, margin: "-10px 6px -10px 0" }}
+            >
+              <IcPen size={13} />
+            </button>
+          )}
           <button
             onClick={() => onFocus(task)}
             title="Tập trung vào việc này"
@@ -248,62 +292,28 @@ function TaskRow({
 
       {moRong && (
         <div style={{ marginTop: 10, paddingLeft: 19, display: "flex", flexDirection: "column", gap: 10 }}>
-          {/* Sửa tên việc. Trước đây chỉ đổi được qua trợ lý, mà đổi một cái
-              tên thì không đáng phải gọi AI. */}
-          {suaTen ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <input
-                value={tenNhap}
-                autoFocus
-                onChange={(e) => setTenNhap(e.target.value.slice(0, 500))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.nativeEvent.isComposing) luuTen();
-                  if (e.key === "Escape") setSuaTen(false);
-                }}
-                aria-label="Tên công việc"
+          {/* Ô nhập tên nằm ngay trên dòng tiêu đề, ở đây chỉ còn hai nút.
+              Enter và Escape vẫn dùng được, hai nút này cho người bấm chuột. */}
+          {suaTen && (
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                onClick={luuTen}
+                disabled={!tenNhap.trim()}
                 style={{
-                  width: "100%",
-                  background: "var(--field)",
-                  border: "1px solid var(--amber)",
-                  borderRadius: 8,
-                  padding: "9px 10px",
-                  color: "var(--cream)",
-                  fontSize: 14.5,
-                  fontWeight: 500,
-                  fontFamily: "var(--font-body)",
-                  minHeight: 42
+                  ...nutNho,
+                  background: "var(--amber)",
+                  color: "var(--navy)",
+                  border: "none",
+                  fontWeight: 600,
+                  opacity: tenNhap.trim() ? 1 : 0.5
                 }}
-              />
-              <div style={{ display: "flex", gap: 6 }}>
-                <button
-                  onClick={luuTen}
-                  disabled={!tenNhap.trim()}
-                  style={{
-                    ...nutNho,
-                    background: "var(--amber)",
-                    color: "var(--navy)",
-                    border: "none",
-                    fontWeight: 600,
-                    opacity: tenNhap.trim() ? 1 : 0.5
-                  }}
-                >
-                  Lưu tên
-                </button>
-                <button onClick={() => setSuaTen(false)} style={nutNho}>
-                  Hủy
-                </button>
-              </div>
+              >
+                Lưu tên
+              </button>
+              <button onClick={() => setSuaTen(false)} style={nutNho}>
+                Hủy
+              </button>
             </div>
-          ) : (
-            <button
-              onClick={() => {
-                setTenNhap(task.title);
-                setSuaTen(true);
-              }}
-              style={{ ...nutNho, display: "inline-flex", alignItems: "center", gap: 6, alignSelf: "flex-start" }}
-            >
-              <IcPen size={12} /> Sửa tên việc
-            </button>
           )}
 
           {dangSua ? (
