@@ -123,11 +123,17 @@ export async function suKienSapToi(userEmail: string): Promise<{ cauHinh: boolea
   const urls = await urlsCuaNguoi(userEmail);
   const { noi: coMicrosoft } = await daNoiMicrosoft(userEmail);
 
-  // Lịch tự dán KHÔNG đi qua bộ đệm: người dùng vừa dán xong là phải thấy
-  // ngay, và nó nằm sẵn trong database nên đọc lại không tốn gì.
+  // Lịch tự dán / đồng bộ từ máy tính KHÔNG đi qua bộ đệm: người dùng vừa đẩy
+  // xong là phải thấy ngay, và nó nằm sẵn trong database nên đọc lại không tốn gì.
   let tuTay: SuKien[] = [];
   try {
-    tuTay = (await getLichTay(userEmail, ngayVNHomNay())) as SuKien[];
+    const homNay = ngayVNHomNay();
+    const ngayMai = new Date(Date.now() + 7 * 3600e3 + 86400000).toISOString().slice(0, 10);
+    const [lichHN, lichNM] = await Promise.all([
+      getLichTay(userEmail, homNay),
+      getLichTay(userEmail, ngayMai)
+    ]);
+    tuTay = [...(lichHN as SuKien[]), ...(lichNM as SuKien[])];
   } catch (err) {
     console.error("Đọc lịch tự dán lỗi:", (err as any)?.message ?? err);
   }

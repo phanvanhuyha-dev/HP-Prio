@@ -166,6 +166,31 @@ Nếu hiện thông báo cần quản trị viên phê duyệt, nghĩa là tenan
 
 Token được **mã hóa** trước khi cất vào database bằng khóa suy ra từ `NEXTAUTH_SECRET`, nên người có database mà không có biến môi trường thì không đọc được. Muốn thu hồi hẳn quyền phía Microsoft, vào [myapps.microsoft.com](https://myapps.microsoft.com), tìm HPPrio và gỡ.
 
+### 7.2. Khi công ty chặn cả xuất bản lịch lẫn Microsoft Entra: Tự động đồng bộ từ Outlook Classic
+
+Trường hợp tập đoàn (như NHG) khóa cả tính năng xuất bản lịch lẫn không duyệt quyền Microsoft Entra:
+- Dữ liệu lịch vẫn nằm trên máy tính cá nhân qua ứng dụng **Outlook Classic**.
+- App cung cấp sẵn endpoint `/api/calendar/sync` và kịch bản PowerShell để tự động đọc lịch hôm nay và ngày mai từ Outlook đẩy thẳng lên HP Prio.
+
+**Các bước thiết lập:**
+1. Thêm biến `CALENDAR_SYNC_TOKEN` trên Vercel và `.env.local` (tự đặt một chuỗi ngẫu nhiên dài).
+2. Tạo file `scripts/sync-config.json` từ file mẫu:
+   ```json
+   {
+     "appUrl": "https://<domain-app-cua-anh>.vercel.app",
+     "syncToken": "<chuoi-CALENDAR_SYNC_TOKEN-vua-dat>"
+   }
+   ```
+3. Chạy thử script thủ công để kiểm tra:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts/sync-outlook.ps1
+   ```
+4. Đăng ký tự động chạy lúc 8:00 sáng và mỗi khi mở máy đăng nhập Windows:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts/cai-dat-lich-chay.ps1
+   ```
+   (Muốn gỡ bỏ tác vụ tự động sau này, chỉ cần chạy: `powershell -ExecutionPolicy Bypass -File scripts/cai-dat-lich-chay.ps1 -GoBo`).
+
 ## 8. Kiểm tra cấu hình khi có lỗi
 
 Đăng nhập vào app rồi mở đường dẫn `/api/health` trên domain của anh:
