@@ -33,6 +33,22 @@ export default function CalendarStrip({ lamMoi = 0 }: { lamMoi?: number }) {
   const [loi, setLoi] = useState<string | null>(null);
   const [nhip, setNhip] = useState(0);
 
+  // Việc cần làm mới là phần chính của màn hình, nên dải lịch mặc định thu
+  // gọn thành một dòng. Lựa chọn của người dùng được nhớ lại giữa các lần mở.
+  const [mo, setMo] = useState(false);
+  useEffect(() => {
+    try {
+      setMo(localStorage.getItem("hpprio-lich-mo") === "1");
+    } catch {}
+  }, []);
+
+  function doiMo(v: boolean) {
+    setMo(v);
+    try {
+      localStorage.setItem("hpprio-lich-mo", v ? "1" : "0");
+    } catch {}
+  }
+
   // lamMoi tăng lên mỗi lần người dùng đổi cấu hình lịch, nhip tăng sau khi
   // dán lịch mới, cả hai đều buộc tải lại dải lịch.
   useEffect(() => {
@@ -92,30 +108,76 @@ export default function CalendarStrip({ lamMoi = 0 }: { lamMoi?: number }) {
   }
 
   const bayGio = Date.now();
+  // Cuộc họp kế tiếp còn chưa kết thúc. Hết lịch trong ngày thì trả undefined
+  // và dòng thu gọn chuyển sang báo đã xong.
+  const sapToi = suKien.find((s) => new Date(s.ketThuc).getTime() >= bayGio);
 
   return (
     <>
       {suKien.length > 0 ? (
-        <section style={{ marginBottom: 18 }} aria-labelledby="tieu-de-lich">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 0 8px" }}>
-            <h2
-              id="tieu-de-lich"
-              className="mono"
-              style={{ fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--slate)", margin: 0 }}
+        <section style={{ marginBottom: mo ? 18 : 14 }} aria-labelledby="tieu-de-lich">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, margin: mo ? "0 0 8px" : 0 }}>
+            {/* Hàng tiêu đề chính là nút thu gọn. Ở trạng thái gọn nó gánh
+                luôn thông tin đáng giá nhất: cuộc họp kế tiếp trong ngày. */}
+            <button
+              onClick={() => doiMo(!mo)}
+              aria-expanded={mo}
+              aria-controls="danh-sach-lich"
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                gap: 9,
+                flex: 1,
+                minWidth: 0,
+                background: "none",
+                border: "none",
+                padding: "4px 0",
+                textAlign: "left"
+              }}
             >
-              Lịch hôm nay
-            </h2>
+              <span
+                id="tieu-de-lich"
+                className="mono"
+                style={{ fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--slate)", flexShrink: 0 }}
+              >
+                Lịch hôm nay
+              </span>
+              {!mo && (
+                <span
+                  className="viec-tieu-de"
+                  style={{ fontSize: 12.5, color: sapToi ? "var(--cream)" : "var(--slate)", minWidth: 0 }}
+                >
+                  {sapToi ? (
+                    <>
+                      <span className="mono" style={{ color: "var(--amber)" }}>
+                        {sapToi.caNgay ? "cả ngày" : gioVN(sapToi.batDau)}
+                      </span>{" "}
+                      {sapToi.tieuDe}
+                    </>
+                  ) : (
+                    `xong ${suKien.length} mục`
+                  )}
+                </span>
+              )}
+              <span className="mono" style={{ fontSize: 11, color: "var(--slate)", flexShrink: 0 }} aria-hidden="true">
+                {mo ? "▴" : `▾ ${suKien.length}`}
+              </span>
+            </button>
             <button
               onClick={() => setMoDan(true)}
               className="tap"
               aria-label="Dán lại lịch hôm nay"
               title="Dán lại lịch hôm nay"
-              style={{ background: "none", border: "none", color: "var(--slate)", fontSize: 11.5, margin: "-10px 0" }}
+              style={{ background: "none", border: "none", color: "var(--slate)", fontSize: 11.5, margin: "-10px 0", flexShrink: 0 }}
             >
               Dán lại
             </button>
           </div>
-          <div style={{ background: "var(--navy-2)", border: "1px solid var(--line)", borderRadius: 14, padding: "4px 14px" }}>
+          <div
+            id="danh-sach-lich"
+            hidden={!mo}
+            style={{ background: "var(--navy-2)", border: "1px solid var(--line)", borderRadius: 14, padding: "4px 14px" }}
+          >
             {suKien.map((s, i) => {
               const daQua = new Date(s.ketThuc).getTime() < bayGio;
               const dangDienRa = !daQua && new Date(s.batDau).getTime() <= bayGio;
