@@ -776,45 +776,53 @@ export default function Dashboard({ userName, email }: { userName: string; email
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: "8px 12px",
+            gap: 6,
             marginTop: 8,
             marginBottom: 12,
             padding: "2px 0"
           }}
         >
-          {/* Xếp theo */}
-          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-            <span className="mono" style={{ fontSize: 11, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.08em", marginRight: 4 }}>
-              Xếp theo
-            </span>
-            {([
-              ["uu-tien", "Ưu tiên"],
-              ["han-chot", "Hạn chót"],
-              ["moi-nhat", "Mới thêm"]
-            ] as const).map(([ma, ten]) => (
-              <button
-                key={ma}
-                onClick={() => setSapXep(ma)}
-                aria-pressed={sapXep === ma}
+          {/* Xếp theo: dạng bộ chọn nhỏ gọn để không chiếm chiều ngang mobile */}
+          <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+            <label
+              htmlFor="select-sap-xep"
+              className="mono"
+              style={{ fontSize: 11, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.06em", cursor: "pointer" }}
+            >
+              Xếp:
+            </label>
+            <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+              <select
+                id="select-sap-xep"
+                value={sapXep}
+                onChange={(e) => setSapXep(e.target.value as any)}
+                aria-label="Tiêu chí sắp xếp danh sách"
                 style={{
-                  background: "transparent",
-                  border: "none",
-                  color: sapXep === ma ? "var(--amber)" : "var(--slate)",
-                  fontSize: 12.5,
-                  fontWeight: sapXep === ma ? 700 : 400,
-                  padding: "4px 6px",
+                  appearance: "none",
+                  WebkitAppearance: "none",
+                  background: "var(--field)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 6,
+                  color: "var(--amber)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "4px 18px 4px 7px",
                   cursor: "pointer",
-                  textDecoration: sapXep === ma ? "underline" : "none",
-                  textUnderlineOffset: 4
+                  fontFamily: "var(--font-body)",
+                  outline: "none"
                 }}
               >
-                {ten}
-              </button>
-            ))}
+                <option value="uu-tien">Ưu tiên</option>
+                <option value="han-chot">Hạn chót</option>
+                <option value="moi-nhat">Mới thêm</option>
+              </select>
+              <span style={{ position: "absolute", right: 5, pointerEvents: "none", color: "var(--slate)", fontSize: 8 }}>
+                ▼
+              </span>
+            </div>
           </div>
 
-          {/* Lọc tính chất công việc: Tất cả / Cơ quan / Cá nhân */}
+          {/* Lọc tính chất công việc: Tất cả / Công việc / Cá nhân */}
           <div
             style={{
               display: "inline-flex",
@@ -822,12 +830,13 @@ export default function Dashboard({ userName, email }: { userName: string; email
               background: "rgba(255, 255, 255, 0.04)",
               padding: 2,
               borderRadius: 8,
-              border: "1px solid var(--line)"
+              border: "1px solid var(--line)",
+              flexShrink: 0
             }}
           >
             {([
               ["tat-ca", "Tất cả"],
-              ["work", "Cơ quan"],
+              ["work", "Công việc"],
               ["personal", "Cá nhân"]
             ] as const).map(([ma, ten]) => (
               <button
@@ -839,11 +848,12 @@ export default function Dashboard({ userName, email }: { userName: string; email
                   border: `1px solid ${nhan === ma ? "var(--amber)" : "transparent"}`,
                   color: nhan === ma ? "var(--cream)" : "var(--slate)",
                   borderRadius: 6,
-                  padding: "4px 10px",
+                  padding: "4px 8px",
                   fontSize: 12,
                   fontWeight: nhan === ma ? 600 : 400,
                   cursor: "pointer",
-                  transition: "all 0.15s ease"
+                  transition: "all 0.15s ease",
+                  whiteSpace: "nowrap"
                 }}
               >
                 {ten}
