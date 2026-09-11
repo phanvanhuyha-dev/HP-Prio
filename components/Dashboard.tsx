@@ -13,7 +13,7 @@ import CalendarStrip from "./CalendarStrip";
 import ReflectionLog from "./ReflectionLog";
 import CaiDat from "./CaiDat";
 import { TroLyProvider } from "./TroLy";
-import { IcSpark, IcSun, IcMoon, IcList, IcChart, IcJournal, IcCaiDat } from "./icons";
+import { IcSpark, IcSun, IcMoon, IcList, IcChart, IcJournal, IcCaiDat, IcSearch } from "./icons";
 
 const THU_VN = ["CHỦ NHẬT", "THỨ HAI", "THỨ BA", "THỨ TƯ", "THỨ NĂM", "THỨ SÁU", "THỨ BẢY"];
 
@@ -444,9 +444,72 @@ export default function Dashboard({ userName, email }: { userName: string; email
           )}
         </div>
 
-        {/* Chỉ còn hai nút: đổi giao diện (bấm thường xuyên) và Cài đặt.
-            Chuông nhắc, nối lịch và đăng xuất đã dọn vào trong Cài đặt. */}
-        <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+        {/* Cụm công cụ: Tìm kiếm, Đổi giao diện, Cài đặt */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginTop: 4 }}>
+          {tab === "homnay" && (
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  color: "var(--slate)",
+                  display: "flex",
+                  alignItems: "center",
+                  pointerEvents: "none"
+                }}
+              >
+                <IcSearch size={13} />
+              </span>
+              <input
+                value={tuKhoa}
+                onChange={(e) => setTuKhoa(e.target.value)}
+                placeholder="Tìm việc..."
+                aria-label="Tìm trong tiêu đề và ghi chú"
+                style={{
+                  width: 140,
+                  maxWidth: "35vw",
+                  background: "var(--field)",
+                  border: `1px solid ${tuKhoa ? "var(--amber)" : "var(--line)"}`,
+                  borderRadius: 999,
+                  padding: "7px 24px 7px 28px",
+                  color: "var(--cream)",
+                  fontSize: 12.5,
+                  fontFamily: "var(--font-body)",
+                  outline: "none",
+                  transition: "border-color 0.2s"
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--amber)";
+                }}
+                onBlur={(e) => {
+                  if (!tuKhoa) e.currentTarget.style.borderColor = "var(--line)";
+                }}
+              />
+              {tuKhoa && (
+                <button
+                  type="button"
+                  onClick={() => setTuKhoa("")}
+                  aria-label="Xóa từ khóa tìm kiếm"
+                  style={{
+                    position: "absolute",
+                    right: 8,
+                    background: "none",
+                    border: "none",
+                    color: "var(--slate)",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    padding: 0,
+                    display: "flex",
+                    alignItems: "center"
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )}
+
           <button
             onClick={doiGiaoDien}
             className="tap"
@@ -626,57 +689,22 @@ export default function Dashboard({ userName, email }: { userName: string; email
         </span>
       </div>
 
-      {/* Bộ lọc và sắp xếp. Chỉ hiện khi đã có vài việc, dưới ngưỡng đó thì
-          cuộn mắt nhanh hơn là gõ tìm. */}
-      {tasks.length >= 4 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <input
-              value={tuKhoa}
-              onChange={(e) => setTuKhoa(e.target.value)}
-              placeholder="Tìm trong tiêu đề và ghi chú..."
-              aria-label="Tìm việc"
-              style={{
-                flex: "1 1 180px",
-                background: "var(--field)",
-                border: "1px solid var(--line)",
-                borderRadius: 10,
-                padding: "10px 12px",
-                color: "var(--cream)",
-                fontSize: 13.5,
-                minHeight: 44,
-                fontFamily: "var(--font-body)"
-              }}
-            />
-            <div style={{ display: "flex", gap: 6 }}>
-              {([
-                ["tat-ca", "Tất cả"],
-                ["work", "Cơ quan"],
-                ["personal", "Cá nhân"]
-              ] as const).map(([ma, ten]) => (
-                <button
-                  key={ma}
-                  onClick={() => setNhan(ma)}
-                  aria-pressed={nhan === ma}
-                  style={{
-                    background: nhan === ma ? "var(--field)" : "transparent",
-                    border: `1px solid ${nhan === ma ? "var(--amber)" : "var(--line)"}`,
-                    color: nhan === ma ? "var(--cream)" : "var(--slate)",
-                    borderRadius: 10,
-                    padding: "8px 12px",
-                    fontSize: 12.5,
-                    fontWeight: nhan === ma ? 600 : 400,
-                    minHeight: 44
-                  }}
-                >
-                  {ten}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-            <span className="mono" style={{ fontSize: 11, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+      {/* Bộ lọc tính chất công việc và sắp xếp gom chung 1 hàng gọn gàng */}
+      {(tasks.length >= 2 || dangLoc) && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "8px 12px",
+            marginBottom: 12,
+            padding: "2px 0"
+          }}
+        >
+          {/* Xếp theo */}
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <span className="mono" style={{ fontSize: 11, color: "var(--slate)", textTransform: "uppercase", letterSpacing: "0.08em", marginRight: 4 }}>
               Xếp theo
             </span>
             {([
@@ -694,10 +722,47 @@ export default function Dashboard({ userName, email }: { userName: string; email
                   color: sapXep === ma ? "var(--amber)" : "var(--slate)",
                   fontSize: 12.5,
                   fontWeight: sapXep === ma ? 700 : 400,
-                  minHeight: 40,
-                  padding: "0 8px",
+                  padding: "4px 6px",
+                  cursor: "pointer",
                   textDecoration: sapXep === ma ? "underline" : "none",
                   textUnderlineOffset: 4
+                }}
+              >
+                {ten}
+              </button>
+            ))}
+          </div>
+
+          {/* Lọc tính chất công việc: Tất cả / Cơ quan / Cá nhân */}
+          <div
+            style={{
+              display: "inline-flex",
+              gap: 2,
+              background: "rgba(255, 255, 255, 0.04)",
+              padding: 2,
+              borderRadius: 8,
+              border: "1px solid var(--line)"
+            }}
+          >
+            {([
+              ["tat-ca", "Tất cả"],
+              ["work", "Cơ quan"],
+              ["personal", "Cá nhân"]
+            ] as const).map(([ma, ten]) => (
+              <button
+                key={ma}
+                onClick={() => setNhan(ma)}
+                aria-pressed={nhan === ma}
+                style={{
+                  background: nhan === ma ? "var(--field)" : "transparent",
+                  border: `1px solid ${nhan === ma ? "var(--amber)" : "transparent"}`,
+                  color: nhan === ma ? "var(--cream)" : "var(--slate)",
+                  borderRadius: 6,
+                  padding: "4px 10px",
+                  fontSize: 12,
+                  fontWeight: nhan === ma ? 600 : 400,
+                  cursor: "pointer",
+                  transition: "all 0.15s ease"
                 }}
               >
                 {ten}

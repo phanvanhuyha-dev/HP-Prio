@@ -177,3 +177,11 @@ export const IcGrip = ({ size = 14, style }: P) => (
     <circle cx="15.5" cy="18" r="1.3" />
   </svg>
 );
+
+// Kính lúp: tìm kiếm
+export const IcSearch = ({ size = 14, style }: P) => (
+  <svg {...goc(size, style)}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="M21 21l-4.35-4.35" />
+  </svg>
+);
