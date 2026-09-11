@@ -1,10 +1,10 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import NotesView from "./NotesView";
 import { demBuoc, themBuocVaoGhiChu } from "@/lib/checklist";
 import { docLoi, loiThanThien, rung } from "@/lib/client-api";
 import { useTenTroLy } from "./TroLy";
-import { IcSpark, IcHome, IcCoQuan, IcPlay, IcPen } from "./icons";
+import { IcSpark, IcHome, IcCoQuan, IcPlay, IcPen, IcLich } from "./icons";
 
 export type Task = {
   id: string;
@@ -24,7 +24,22 @@ type ReclassifyPatch = {
   userUrgent?: boolean;
   userImportant?: boolean;
   notes?: string | null;
+  deadline?: string | null;
 };
+
+function isoToLocalInput(iso: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localInputToIso(value: string) {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
 
 // Bốn nhóm Eisenhower giữ nguyên ngữ nghĩa, nhưng thể hiện bằng CHẤM MÀU và
 // nhãn trên từng dòng thay vì bốn ô chia màn hình. Danh sách dọc đỡ tốn không
@@ -119,6 +134,12 @@ function TaskRow({
   const [loiChia, setLoiChia] = useState<string | null>(null);
   const [suaTen, setSuaTen] = useState(false);
   const [tenNhap, setTenNhap] = useState("");
+  const [dangSuaHan, setDangSuaHan] = useState(false);
+  const [tamHan, setTamHan] = useState<string | null>(task.deadline);
+
+  useEffect(() => {
+    setTamHan(task.deadline);
+  }, [task.deadline]);
 
   function luuTen() {
     const ten = tenNhap.trim();
@@ -236,12 +257,63 @@ function TaskRow({
             <span title={task.category === "work" ? "Việc cơ quan" : "Việc cá nhân"} style={{ display: "inline-flex" }}>
               {task.category === "work" ? <IcCoQuan size={12} /> : <IcHome size={12} />}
             </span>
-            {task.deadline && (
-              <span style={{ color: overdue ? "var(--coral)" : "var(--slate)" }}>
+            {task.deadline ? (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMoRong(true);
+                  setTamHan(task.deadline);
+                  setDangSuaHan((v) => !v);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    setMoRong(true);
+                    setTamHan(task.deadline);
+                    setDangSuaHan((v) => !v);
+                  }
+                }}
+                title="Bấm để sửa hoặc bỏ hạn chót"
+                style={{
+                  color: overdue ? "var(--coral)" : "var(--slate)",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  textDecoration: "underline",
+                  textUnderlineOffset: 3
+                }}
+              >
+                <IcLich size={11} />
                 {overdue ? "Quá hạn " : ""}
                 {new Date(task.deadline).toLocaleDateString("vi-VN")}
               </span>
-            )}
+            ) : moRong ? (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTamHan(null);
+                  setDangSuaHan(true);
+                }}
+                title="Đặt thời hạn cho việc này"
+                style={{
+                  color: "var(--slate)",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  textDecoration: "underline",
+                  textUnderlineOffset: 3
+                }}
+              >
+                <IcLich size={11} />
+                + Hạn chót
+              </span>
+            ) : null}
             {buoc.tong > 0 && (
               <span style={{ color: buoc.xong === buoc.tong ? "var(--teal)" : "var(--slate)" }}>
                 ✓ {buoc.xong}/{buoc.tong}
@@ -313,6 +385,157 @@ function TaskRow({
               <button onClick={() => setSuaTen(false)} style={nutNho}>
                 Hủy
               </button>
+            </div>
+          )}
+
+          {/* Khung sửa hạn chót */}
+          {dangSuaHan && (
+            <div
+              style={{
+                background: "var(--field)",
+                border: "1px solid var(--amber)",
+                borderRadius: 10,
+                padding: "10px 12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--cream)", display: "flex", alignItems: "center", gap: 6 }}>
+                  <IcLich size={13} style={{ color: "var(--amber)" }} />
+                  Thời hạn công việc
+                </span>
+                {task.deadline && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onReclassify(task.id, { deadline: null });
+                      setDangSuaHan(false);
+                      rung(6);
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--coral)",
+                      fontSize: 12,
+                      cursor: "pointer",
+                      padding: "2px 4px",
+                      textDecoration: "underline"
+                    }}
+                  >
+                    Bỏ hạn chót
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <input
+                  type="datetime-local"
+                  value={isoToLocalInput(tamHan)}
+                  onChange={(e) => setTamHan(localInputToIso(e.target.value))}
+                  style={{
+                    flex: "1 1 200px",
+                    background: "var(--navy)",
+                    border: "1px solid var(--line)",
+                    borderRadius: 6,
+                    padding: "7px 10px",
+                    color: "var(--cream)",
+                    fontSize: 13,
+                    fontFamily: "var(--font-body)"
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    onReclassify(task.id, { deadline: tamHan });
+                    setDangSuaHan(false);
+                    rung(8);
+                  }}
+                  style={{
+                    background: "var(--amber)",
+                    color: "var(--navy)",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "7px 16px",
+                    fontWeight: 600,
+                    fontSize: 13,
+                    cursor: "pointer"
+                  }}
+                >
+                  Lưu hạn
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTamHan(task.deadline);
+                    setDangSuaHan(false);
+                  }}
+                  style={{
+                    background: "transparent",
+                    color: "var(--slate)",
+                    border: "1px solid var(--line)",
+                    borderRadius: 6,
+                    padding: "7px 12px",
+                    fontSize: 13,
+                    cursor: "pointer"
+                  }}
+                >
+                  Đóng
+                </button>
+              </div>
+
+              {/* Phím chọn nhanh ngày */}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                <span style={{ fontSize: 11, color: "var(--slate)" }}>Gợi ý:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setHours(18, 0, 0, 0);
+                    const iso = d.toISOString();
+                    setTamHan(iso);
+                    onReclassify(task.id, { deadline: iso });
+                    setDangSuaHan(false);
+                    rung(6);
+                  }}
+                  style={nutGoiYNhanh}
+                >
+                  Hôm nay 18:00
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + 1);
+                    d.setHours(18, 0, 0, 0);
+                    const iso = d.toISOString();
+                    setTamHan(iso);
+                    onReclassify(task.id, { deadline: iso });
+                    setDangSuaHan(false);
+                    rung(6);
+                  }}
+                  style={nutGoiYNhanh}
+                >
+                  Ngày mai 18:00
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + 7);
+                    d.setHours(18, 0, 0, 0);
+                    const iso = d.toISOString();
+                    setTamHan(iso);
+                    onReclassify(task.id, { deadline: iso });
+                    setDangSuaHan(false);
+                    rung(6);
+                  }}
+                  style={nutGoiYNhanh}
+                >
+                  +7 ngày
+                </button>
+              </div>
             </div>
           )}
 
@@ -389,6 +612,34 @@ function TaskRow({
                 color="var(--teal)"
                 onClick={() => onReclassify(task.id, { userImportant: !task.user_important })}
               />
+
+              {/* Nút đặt hoặc sửa hạn chót */}
+              <button
+                type="button"
+                onClick={() => {
+                  setTamHan(task.deadline);
+                  setDangSuaHan((v) => !v);
+                }}
+                style={{
+                  ...nutNho,
+                  borderColor: dangSuaHan ? "var(--amber)" : "var(--line)",
+                  color: task.deadline ? (overdue ? "var(--coral)" : "var(--amber)") : "var(--cream)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6
+                }}
+                title={task.deadline ? "Sửa hoặc bỏ hạn chót" : "Đặt hạn chót cho việc này"}
+              >
+                <IcLich size={13} />
+                {task.deadline ? (
+                  <span>
+                    {overdue ? "Quá hạn " : "Hạn "}
+                    {new Date(task.deadline).toLocaleDateString("vi-VN")}
+                  </span>
+                ) : (
+                  "+ Hạn chót"
+                )}
+              </button>
 
               <button
                 onClick={chiaBuoc}
@@ -467,3 +718,13 @@ function MiniToggle({
     </button>
   );
 }
+
+const nutGoiYNhanh: React.CSSProperties = {
+  background: "rgba(255, 255, 255, 0.06)",
+  border: "1px solid var(--line)",
+  borderRadius: 6,
+  color: "var(--cream)",
+  fontSize: 11.5,
+  padding: "3px 8px",
+  cursor: "pointer"
+};

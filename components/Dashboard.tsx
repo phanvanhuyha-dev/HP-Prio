@@ -378,7 +378,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
 
   function handleReclassify(
     id: string,
-    patch: { title?: string; userUrgent?: boolean; userImportant?: boolean; notes?: string | null }
+    patch: { title?: string; userUrgent?: boolean; userImportant?: boolean; notes?: string | null; deadline?: string | null }
   ) {
     return mutate(
       (prev) =>
@@ -390,7 +390,8 @@ export default function Dashboard({ userName, email }: { userName: string; email
                 user_urgent: patch.userUrgent ?? t.user_urgent,
                 user_important: patch.userImportant ?? t.user_important,
                 // notes có thể là null (xóa trắng) nên phải dùng "in", không dùng ??
-                notes: "notes" in patch ? patch.notes ?? null : t.notes
+                notes: "notes" in patch ? patch.notes ?? null : t.notes,
+                deadline: "deadline" in patch ? patch.deadline ?? null : t.deadline
               }
             : t
         ),
