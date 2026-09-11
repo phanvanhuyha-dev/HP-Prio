@@ -119,7 +119,7 @@ export const IcHome = ({ size = 16, style }: P) => (
   </svg>
 );
 
-// Việc cơ quan
+// Việc công ty
 export const IcCoQuan = ({ size = 16, style }: P) => (
   <svg {...goc(size, style)}>
     <rect x="3.5" y="8" width="17" height="11" rx="2" />

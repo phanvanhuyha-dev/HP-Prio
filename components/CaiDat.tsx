@@ -2,12 +2,12 @@
 import { useEffect, useRef, useState } from "react";
 import { signOut } from "next-auth/react";
 import PushSetup from "./PushSetup";
-import { IcLich, IcPen, IcSpark } from "./icons";
+import { IcLich, IcPen, IcSpark, IcList } from "./icons";
 import { DAI_TOI_DA_TEN_TRO_LY, TEN_TRO_LY_MAC_DINH } from "@/lib/branding";
+import { type DanhMuc, DANH_MUC_MAC_DINH } from "@/lib/db";
 
-// Một chỗ duy nhất cho mọi thứ thuộc về "cấu hình": tên gọi, tên trợ lý, lịch
-// họp, nhắc deadline, đăng xuất. Trước đây chúng nằm rải trên thanh đầu trang
-// dưới dạng ba, bốn icon rời, vừa chật vừa khó đoán cái nào làm gì.
+// Một chỗ duy nhất cho mọi thứ thuộc về "cấu hình": tên gọi, tên trợ lý, danh mục,
+// lịch họp, nhắc deadline, đăng xuất.
 
 async function docLoi(res: Response): Promise<string> {
   try {
@@ -55,18 +55,25 @@ const oNhap: React.CSSProperties = {
 export default function CaiDat({
   tenGoiHienTai,
   tenTroLyHienTai,
+  danhMucHienTai,
   onDong,
   onLuuXong,
   onThongBao
 }: {
   tenGoiHienTai: string;
   tenTroLyHienTai: string;
+  danhMucHienTai?: DanhMuc[];
   onDong: () => void;
-  onLuuXong: (kq: { tenGoi: string; tenTroLy: string; lichDoi: boolean }) => void;
+  onLuuXong: (kq: { tenGoi: string; tenTroLy: string; lichDoi: boolean; danhMucMoi?: DanhMuc[] }) => void;
   onThongBao: (msg: string) => void;
 }) {
   const [tenGoi, setTenGoi] = useState(tenGoiHienTai);
   const [tenTroLy, setTenTroLy] = useState(tenTroLyHienTai);
+  const [danhMuc, setDanhMuc] = useState<DanhMuc[]>(danhMucHienTai && danhMucHienTai.length > 0 ? danhMucHienTai : DANH_MUC_MAC_DINH);
+  const [danhMucGoc, setDanhMucGoc] = useState<DanhMuc[]>(danhMucHienTai && danhMucHienTai.length > 0 ? danhMucHienTai : DANH_MUC_MAC_DINH);
+  const [tenDanhMucMoi, setTenDanhMucMoi] = useState("");
+  const [idBiXoa, setIdBiXoa] = useState<string | null>(null);
+
   const [lich, setLich] = useState("");
   const [lichGoc, setLichGoc] = useState("");
   const [dangTai, setDangTai] = useState(true);
@@ -104,6 +111,10 @@ export default function CaiDat({
         setLichGoc(ds);
         if (typeof d.tenGoi === "string") setTenGoi(d.tenGoi);
         if (typeof d.tenTroLy === "string" && d.tenTroLy) setTenTroLy(d.tenTroLy);
+        if (Array.isArray(d.danhMuc) && d.danhMuc.length > 0) {
+          setDanhMuc(d.danhMuc);
+          setDanhMucGoc(d.danhMuc);
+        }
       })
       .catch((e) => setLoi(e.message))
       .finally(() => setDangTai(false));
@@ -118,8 +129,7 @@ export default function CaiDat({
     return () => window.removeEventListener("keydown", f);
   }, [onDong]);
 
-  // Khóa cuộn trang nền khi hộp thoại đang mở. Không khóa thì lăn chuột ra
-  // ngoài hộp làm trang phía sau trôi đi, nhìn như chính hộp thoại đang trôi.
+  // Khóa cuộn trang nền khi hộp thoại đang mở.
   useEffect(() => {
     const cu = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -133,22 +143,28 @@ export default function CaiDat({
     setLoi(null);
     try {
       const lichDoi = lich.trim() !== lichGoc.trim();
+      const danhMucDoi = JSON.stringify(danhMuc) !== JSON.stringify(danhMucGoc);
+
+      const bodyData: Record<string, unknown> = {
+        tenGoi,
+        tenTroLy,
+        ...(lichDoi ? { icsUrls: lich } : {}),
+        ...(danhMucDoi ? { danhMuc, ...(idBiXoa ? { idBiXoa } : {}) } : {})
+      };
+
       const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        // Gửi cả cụm trong MỘT lượt: người dùng bấm Lưu một lần thì không nên
-        // có chuyện tên lưu được còn lịch thì không.
-        body: JSON.stringify({ tenGoi, tenTroLy, ...(lichDoi ? { icsUrls: lich } : {}) })
+        body: JSON.stringify(bodyData)
       });
       if (!res.ok) throw new Error(await docLoi(res));
       const d = await res.json();
       onLuuXong({
         tenGoi: typeof d.tenGoi === "string" ? d.tenGoi : "",
         tenTroLy: typeof d.tenTroLy === "string" && d.tenTroLy ? d.tenTroLy : TEN_TRO_LY_MAC_DINH,
-        lichDoi
+        lichDoi,
+        danhMucMoi: Array.isArray(d.danhMuc) ? d.danhMuc : danhMuc
       });
-      // Đã lưu nhưng có liên kết lịch chưa tải được: giữ hộp thoại mở và nói
-      // rõ tại chỗ. Đóng rồi mới báo thì người dùng không biết sửa dòng nào.
       if (typeof d.canhBao === "string" && d.canhBao) {
         setLoi(`Đã lưu, nhưng chưa tải được lịch. ${d.canhBao}`);
         return;
@@ -211,6 +227,130 @@ export default function CaiDat({
           <p style={{ fontSize: 12, lineHeight: 1.55, color: "var(--slate)", margin: "6px 0 0" }}>
             Tên này hiện trên nút gọi trợ lý và là cách trợ lý tự xưng khi trả lời. Để trống thì quay về{" "}
             {TEN_TRO_LY_MAC_DINH}.
+          </p>
+        </section>
+
+        {/* --- Danh mục công việc --- */}
+        <section style={{ marginBottom: 18 }}>
+          <NhanMuc icon={<IcList size={12} />}>Danh mục công việc</NhanMuc>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
+            {danhMuc.map((m, idx) => (
+              <div
+                key={m.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: "var(--field)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 8,
+                  padding: "6px 10px"
+                }}
+              >
+                <span className="mono" style={{ fontSize: 11, color: "var(--amber)", minWidth: 16 }}>
+                  {idx + 1}.
+                </span>
+                <input
+                  value={m.ten}
+                  onChange={(e) => {
+                    const val = e.target.value.slice(0, 30);
+                    setDanhMuc((ds) => ds.map((d) => (d.id === m.id ? { ...d, ten: val } : d)));
+                  }}
+                  placeholder="Tên danh mục..."
+                  aria-label={`Tên danh mục ${m.ten}`}
+                  style={{
+                    flex: 1,
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--cream)",
+                    fontSize: 13.5,
+                    fontFamily: "var(--font-body)",
+                    outline: "none"
+                  }}
+                />
+                {danhMuc.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!confirm(`Xóa danh mục "${m.ten}"? Các việc thuộc danh mục này sẽ chuyển về "${danhMuc.find((d) => d.id !== m.id)?.ten}".`)) {
+                        return;
+                      }
+                      setIdBiXoa(m.id);
+                      setDanhMuc((ds) => ds.filter((d) => d.id !== m.id));
+                    }}
+                    title="Xóa danh mục"
+                    aria-label={`Xóa danh mục ${m.ten}`}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--slate)",
+                      fontSize: 14,
+                      cursor: "pointer",
+                      padding: "4px 6px"
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Thêm danh mục mới */}
+          {danhMuc.length < 10 && (
+            <div style={{ display: "flex", gap: 6 }}>
+              <input
+                value={tenDanhMucMoi}
+                onChange={(e) => setTenDanhMucMoi(e.target.value.slice(0, 30))}
+                placeholder="Thêm danh mục mới (vd: Học tập)..."
+                aria-label="Tên danh mục mới"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const t = tenDanhMucMoi.trim();
+                    if (!t) return;
+                    if (danhMuc.some((d) => d.ten.toLowerCase() === t.toLowerCase())) {
+                      alert("Đã có danh mục mang tên này");
+                      return;
+                    }
+                    const idMoi = `cat_${Date.now().toString(36)}`;
+                    setDanhMuc((ds) => [...ds, { id: idMoi, ten: t }]);
+                    setTenDanhMucMoi("");
+                  }
+                }}
+                style={{ ...oNhap, flex: 1, minHeight: 38, padding: "7px 10px", fontSize: 13 }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const t = tenDanhMucMoi.trim();
+                  if (!t) return;
+                  if (danhMuc.some((d) => d.ten.toLowerCase() === t.toLowerCase())) {
+                    alert("Đã có danh mục mang tên này");
+                    return;
+                  }
+                  const idMoi = `cat_${Date.now().toString(36)}`;
+                  setDanhMuc((ds) => [...ds, { id: idMoi, ten: t }]);
+                  setTenDanhMucMoi("");
+                }}
+                style={{
+                  background: "var(--field)",
+                  border: "1px solid var(--amber)",
+                  borderRadius: 8,
+                  color: "var(--amber)",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  padding: "0 12px",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap"
+                }}
+              >
+                + Thêm
+              </button>
+            </div>
+          )}
+          <p style={{ fontSize: 12, lineHeight: 1.55, color: "var(--slate)", margin: "6px 0 0" }}>
+            Bấm vào tên để sửa trực tiếp. Bấm ✕ để xóa (việc cũ sẽ tự dời về danh mục đầu tiên).
           </p>
         </section>
 

@@ -73,14 +73,24 @@ async function chayVaTuSua<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+export interface DanhMuc {
+  id: string;
+  ten: string;
+}
+
+export const DANH_MUC_MAC_DINH: DanhMuc[] = [
+  { id: "work", ten: "Công ty" },
+  { id: "personal", ten: "Cá nhân" }
+];
+
 export const TASK_CATEGORIES = ["work", "personal"] as const;
 export const TASK_STATUSES = ["open", "done", "archived", "deleted"] as const;
 
-export type TaskCategory = (typeof TASK_CATEGORIES)[number];
+export type TaskCategory = string;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 export function isValidCategory(value: unknown): value is TaskCategory {
-  return typeof value === "string" && (TASK_CATEGORIES as readonly string[]).includes(value);
+  return typeof value === "string" && value.trim().length > 0 && value.trim().length <= 50;
 }
 
 export function isValidStatus(value: unknown): value is TaskStatus {
@@ -504,12 +514,13 @@ export async function saveTenGoi(userEmail: string, ten: string | null) {
   });
 }
 
-// Đọc cả cụm cấu hình trong MỘT truy vấn. Màn hình Cài đặt cần đủ ba thứ nên
-// gọi riêng từng cái là ba lượt đi về database cho cùng một hàng.
+// Đọc cả cụm cấu hình trong MỘT truy vấn. Màn hình Cài đặt cần đủ các mục nên
+// gọi riêng từng cái là nhiều lượt đi về database cho cùng một hàng.
 export type CaiDatNguoiDung = {
   tenGoi: string | null;
   tenTroLy: string | null;
   icsUrls: string[];
+  danhMuc: DanhMuc[];
 };
 
 function tachDong(x: string | null | undefined): string[] {
@@ -519,20 +530,36 @@ function tachDong(x: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
+export function phanTichDanhMuc(raw: string | null | undefined): DanhMuc[] {
+  if (!raw) return DANH_MUC_MAC_DINH;
+  try {
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr) && arr.length > 0) {
+      const hopLe = arr.filter(
+        (x) => x && typeof x === "object" && typeof x.id === "string" && typeof x.ten === "string" && x.ten.trim()
+      );
+      if (hopLe.length > 0) return hopLe;
+    }
+  } catch {}
+  return DANH_MUC_MAC_DINH;
+}
+
 export async function getCaiDat(userEmail: string): Promise<CaiDatNguoiDung> {
   return chayVaTuSua(async () => {
     const { rows } = await sql<{
       ten_goi: string | null;
       ten_tro_ly: string | null;
       ics_urls: string | null;
+      danh_muc: string | null;
     }>`
-      SELECT ten_goi, ten_tro_ly, ics_urls FROM user_settings WHERE user_email = ${userEmail}
+      SELECT ten_goi, ten_tro_ly, ics_urls, danh_muc FROM user_settings WHERE user_email = ${userEmail}
     `;
     const r = rows[0];
     return {
       tenGoi: r?.ten_goi ?? null,
       tenTroLy: r?.ten_tro_ly ?? null,
-      icsUrls: tachDong(r?.ics_urls)
+      icsUrls: tachDong(r?.ics_urls),
+      danhMuc: phanTichDanhMuc(r?.danh_muc)
     };
   });
 }
@@ -588,6 +615,25 @@ export async function saveIcsUrls(userEmail: string, urls: string[]) {
       VALUES (${userEmail}, ${gop})
       ON CONFLICT (user_email) DO UPDATE SET ics_urls = EXCLUDED.ics_urls, updated_at = now()
     `;
+  });
+}
+
+export async function saveDanhMuc(userEmail: string, ds: DanhMuc[], idBiXoa?: string) {
+  const json = JSON.stringify(ds);
+  return chayVaTuSua(async () => {
+    await sql`
+      INSERT INTO user_settings (user_email, danh_muc)
+      VALUES (${userEmail}, ${json})
+      ON CONFLICT (user_email) DO UPDATE SET danh_muc = EXCLUDED.danh_muc, updated_at = now()
+    `;
+    // Khi xóa một danh mục, tự động chuyển các task cũ thuộc danh mục đó về danh mục mặc định đầu tiên
+    if (idBiXoa && ds.length > 0) {
+      const thayThe = ds[0].id;
+      await sql`
+        UPDATE tasks SET category = ${thayThe}, updated_at = now()
+        WHERE user_email = ${userEmail} AND category = ${idBiXoa}
+      `;
+    }
   });
 }
 

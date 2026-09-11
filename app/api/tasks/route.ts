@@ -38,7 +38,8 @@ export async function GET(req: Request) {
       tasks,
       counts,
       tenGoi: caiDat.tenGoi,
-      tenTroLy: chuanHoaTenTroLy(caiDat.tenTroLy)
+      tenTroLy: chuanHoaTenTroLy(caiDat.tenTroLy),
+      danhMuc: caiDat.danhMuc
     });
   } catch (err) {
     console.error("List tasks error:", err);

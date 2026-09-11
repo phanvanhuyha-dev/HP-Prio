@@ -146,7 +146,12 @@ export const CAU_LENH_SCHEMA: string[] = [
      noi_dung TEXT NOT NULL,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
      PRIMARY KEY (user_email, ngay)
-   )`
+   )`,
+  // Gỡ bỏ ràng buộc cứng tasks_category_check để người dùng tự do tạo danh mục tùy chỉnh
+  `ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_category_check`,
+
+  // Danh sách danh mục công việc do người dùng tự đặt (mảng JSON [{ id, ten }])
+  `ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS danh_muc TEXT`,
 ];
 
 // Các cột mà code đang dựa vào. /api/health đối chiếu danh sách này với cấu trúc
@@ -164,7 +169,7 @@ export const COT_BAT_BUOC: Record<string, string[]> = {
     "started_at", "ended_at", "seconds"
   ],
   daily_briefs: ["user_email", "ngay", "noi_dung", "created_at"],
-  user_settings: ["user_email", "ten_goi", "ics_urls", "ten_tro_ly", "updated_at"],
+  user_settings: ["user_email", "ten_goi", "ics_urls", "ten_tro_ly", "danh_muc", "updated_at"],
   reflections: ["user_email", "ngay", "thanh_tuu", "cai_thien", "updated_at"],
   lich_tay: ["user_email", "ngay", "su_kien", "updated_at"],
   ms_calendar: [

@@ -155,7 +155,7 @@ export async function POST(req: Request) {
   }
   if (isValidCategory(td.category) && td.category !== task.category) {
     capNhat.category = td.category;
-    tomTat.push(`Phân loại → ${td.category === "work" ? "Cơ quan" : "Cá nhân"}`);
+    tomTat.push(`Phân loại → ${td.category === "work" ? "Công ty" : "Cá nhân"}`);
   }
   if (typeof td.urgent === "boolean") {
     capNhat.userUrgent = td.urgent;

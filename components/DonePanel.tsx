@@ -2,17 +2,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { docLoi, loiThanThien, ngayVN } from "@/lib/client-api";
 import type { Task } from "./TaskList";
+import { type DanhMuc } from "@/lib/db";
 
 // Màn hình việc đã xong. Không có nơi xem lại thì bấm nhầm dấu ✓ là mất dấu
 // vĩnh viễn, dù dữ liệu vẫn nằm nguyên trong database.
 export default function DonePanel({
   soLuong,
   moiLamMoi,
+  danhMuc,
   onDoiTrangThai,
   onDoiMo
 }: {
   soLuong: number;
   moiLamMoi: number;
+  danhMuc?: DanhMuc[];
   onDoiTrangThai: () => void;
   // Báo lên Dashboard để nút nổi tự ẩn, kẻo nó đè lên các nút trong danh sách
   onDoiMo?: (mo: boolean) => void;
@@ -121,7 +124,8 @@ export default function DonePanel({
                   {t.title}
                 </div>
                 <div className="mono" style={{ fontSize: 11, color: "var(--slate)", marginTop: 3 }}>
-                  {t.category === "work" ? "Cơ quan" : "Cá nhân"}
+                  {danhMuc?.find((d) => d.id === t.category)?.ten ||
+                    (t.category === "work" ? "Công ty" : t.category === "personal" ? "Cá nhân" : t.category)}
                   {t.deadline ? ` · hạn ${ngayVN(t.deadline)}` : ""}
                 </div>
               </div>

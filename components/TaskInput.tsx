@@ -5,9 +5,11 @@ import { useTenTroLy } from "./TroLy";
 import { IcSpark, IcMic, IcStop } from "./icons";
 import { doanViecTuCau } from "@/lib/ngay-viet";
 
+import { type DanhMuc, DANH_MUC_MAC_DINH } from "@/lib/db";
+
 type ParsedTask = {
   title: string;
-  category: "work" | "personal";
+  category: string;
   deadline: string | null;
   urgent: boolean;
   important: boolean;
@@ -63,7 +65,13 @@ function ghiChuMacDinh(cauGoc: string, tieuDe: string) {
   return chuanHoa(cauGoc) === chuanHoa(tieuDe) ? "" : cauGoc.trim();
 }
 
-export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string) => void }) {
+export default function TaskInput({
+  onHoanTat,
+  danhMuc
+}: {
+  onHoanTat: (thongBao: string) => void;
+  danhMuc?: DanhMuc[];
+}) {
   const TEN_TRO_LY = useTenTroLy();
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
@@ -302,6 +310,7 @@ export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string)
       <ReviewCard
         original={text}
         suggestion={suggestion}
+        danhMuc={danhMuc}
         dungAI={dungAI}
         ghiChuDuPhong={ghiChuDuPhong}
         saving={loading}
@@ -552,6 +561,7 @@ export default function TaskInput({ onHoanTat }: { onHoanTat: (thongBao: string)
 function ReviewCard({
   original,
   suggestion,
+  danhMuc,
   dungAI,
   ghiChuDuPhong,
   saving,
@@ -561,6 +571,7 @@ function ReviewCard({
 }: {
   original: string;
   suggestion: ParsedTask;
+  danhMuc?: DanhMuc[];
   dungAI: boolean;
   ghiChuDuPhong: string | null;
   saving: boolean;
@@ -639,11 +650,14 @@ function ReviewCard({
           <select
             id={`${id}-cat`}
             value={draft.category}
-            onChange={(e) => setDraft({ ...draft, category: e.target.value as any })}
+            onChange={(e) => setDraft({ ...draft, category: e.target.value })}
             style={inputStyle}
           >
-            <option value="work">Công việc cơ quan</option>
-            <option value="personal">Cá nhân</option>
+            {(danhMuc && danhMuc.length > 0 ? danhMuc : DANH_MUC_MAC_DINH).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.ten}
+              </option>
+            ))}
           </select>
         </div>
         <div style={{ flex: "1 1 160px" }}>

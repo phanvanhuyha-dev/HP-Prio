@@ -14,6 +14,7 @@ import ReflectionLog from "./ReflectionLog";
 import CaiDat from "./CaiDat";
 import { TroLyProvider } from "./TroLy";
 import { IcSpark, IcSun, IcMoon, IcList, IcChart, IcJournal, IcCaiDat, IcSearch } from "./icons";
+import { type DanhMuc, DANH_MUC_MAC_DINH } from "@/lib/db";
 
 const THU_VN = ["CHỦ NHẬT", "THỨ HAI", "THỨ BA", "THỨ TƯ", "THỨ NĂM", "THỨ SÁU", "THỨ BẢY"];
 
@@ -31,7 +32,8 @@ export default function Dashboard({ userName, email }: { userName: string; email
   const [tuKhoa, setTuKhoa] = useState("");
   const [moTimKiem, setMoTimKiem] = useState(false);
   const inputTimKiemRef = useRef<HTMLInputElement>(null);
-  const [nhan, setNhan] = useState<"tat-ca" | "work" | "personal">("tat-ca");
+  const [nhan, setNhan] = useState<string>("tat-ca");
+  const [danhMuc, setDanhMuc] = useState<DanhMuc[]>(DANH_MUC_MAC_DINH);
   const [sapXep, setSapXep] = useState<"uu-tien" | "han-chot" | "moi-nhat">("uu-tien");
 
   // Khung nhập việc nay nằm sau nút nổi "Bé iu", không chiếm màn hình chính nữa.
@@ -239,6 +241,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
       setDem(data.counts || { open: 0, done: 0, deleted: 0 });
 
       if (typeof data.tenTroLy === "string" && data.tenTroLy) setTenTroLy(data.tenTroLy);
+      if (Array.isArray(data.danhMuc) && data.danhMuc.length > 0) setDanhMuc(data.danhMuc);
 
       // Tên gọi: máy chủ là nguồn chuẩn. Máy chủ chưa có mà máy này từng đặt
       // tên trong localStorage (bản cũ) thì tự đẩy lên một lần, khỏi gõ lại.
@@ -625,14 +628,23 @@ export default function Dashboard({ userName, email }: { userName: string; email
         <CaiDat
           tenGoiHienTai={tenGoi}
           tenTroLyHienTai={tenTroLy}
+          danhMucHienTai={danhMuc}
           onDong={() => setMoCaiDat(false)}
           onThongBao={(m) => {
             setDaLuu(m);
             setTimeout(() => setDaLuu(null), 4000);
           }}
-          onLuuXong={({ tenGoi: tg, tenTroLy: tl, lichDoi }) => {
+          onLuuXong={({ tenGoi: tg, tenTroLy: tl, lichDoi, danhMucMoi }) => {
             setTenGoi(tg);
             setTenTroLy(tl);
+            if (danhMucMoi && danhMucMoi.length > 0) {
+              setDanhMuc(danhMucMoi);
+              // Nếu nhãn đang chọn bị xóa thì quay về 'tat-ca'
+              if (nhan !== "tat-ca" && !danhMucMoi.some((d) => d.id === nhan)) {
+                setNhan("tat-ca");
+              }
+              loadTasks();
+            }
             try {
               if (tg) localStorage.setItem("hpprio-ten", tg);
               else localStorage.removeItem("hpprio-ten");
@@ -822,7 +834,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
             </div>
           </div>
 
-          {/* Lọc tính chất công việc: Tất cả / Công việc / Cá nhân */}
+          {/* Lọc tính chất công việc động theo danh mục của người dùng */}
           <div
             style={{
               display: "inline-flex",
@@ -831,32 +843,51 @@ export default function Dashboard({ userName, email }: { userName: string; email
               padding: 2,
               borderRadius: 8,
               border: "1px solid var(--line)",
-              flexShrink: 0
+              flexShrink: 1,
+              maxWidth: "calc(100% - 92px)",
+              overflowX: "auto",
+              scrollbarWidth: "none"
             }}
           >
-            {([
-              ["tat-ca", "Tất cả"],
-              ["work", "Công việc"],
-              ["personal", "Cá nhân"]
-            ] as const).map(([ma, ten]) => (
+            <button
+              onClick={() => setNhan("tat-ca")}
+              aria-pressed={nhan === "tat-ca"}
+              style={{
+                background: nhan === "tat-ca" ? "var(--field)" : "transparent",
+                border: `1px solid ${nhan === "tat-ca" ? "var(--amber)" : "transparent"}`,
+                color: nhan === "tat-ca" ? "var(--cream)" : "var(--slate)",
+                borderRadius: 6,
+                padding: "4px 8px",
+                fontSize: 12,
+                fontWeight: nhan === "tat-ca" ? 600 : 400,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+                whiteSpace: "nowrap",
+                flexShrink: 0
+              }}
+            >
+              Tất cả
+            </button>
+            {danhMuc.map((m) => (
               <button
-                key={ma}
-                onClick={() => setNhan(ma)}
-                aria-pressed={nhan === ma}
+                key={m.id}
+                onClick={() => setNhan(m.id)}
+                aria-pressed={nhan === m.id}
                 style={{
-                  background: nhan === ma ? "var(--field)" : "transparent",
-                  border: `1px solid ${nhan === ma ? "var(--amber)" : "transparent"}`,
-                  color: nhan === ma ? "var(--cream)" : "var(--slate)",
+                  background: nhan === m.id ? "var(--field)" : "transparent",
+                  border: `1px solid ${nhan === m.id ? "var(--amber)" : "transparent"}`,
+                  color: nhan === m.id ? "var(--cream)" : "var(--slate)",
                   borderRadius: 6,
                   padding: "4px 8px",
                   fontSize: 12,
-                  fontWeight: nhan === ma ? 600 : 400,
+                  fontWeight: nhan === m.id ? 600 : 400,
                   cursor: "pointer",
                   transition: "all 0.15s ease",
-                  whiteSpace: "nowrap"
+                  whiteSpace: "nowrap",
+                  flexShrink: 0
                 }}
               >
-                {ten}
+                {m.ten}
               </button>
             ))}
           </div>
@@ -878,6 +909,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
               </div>
               <TaskList
                 tasks={dsQuaHan}
+                danhMuc={danhMuc}
                 onDone={handleDone}
                 onDelete={handleDelete}
                 onReclassify={handleReclassify}
@@ -894,6 +926,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
           {(dsBinhThuong.length > 0 || (dsQuaHan.length === 0 && !dangLoc)) && (
             <TaskList
               tasks={dsBinhThuong}
+              danhMuc={danhMuc}
               onDone={handleDone}
               onDelete={handleDelete}
               onReclassify={handleReclassify}
@@ -925,6 +958,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
       <DonePanel
         soLuong={dem.done ?? 0}
         moiLamMoi={nhipLamMoi}
+        danhMuc={danhMuc}
         onDoiMo={setPanelMo}
         onDoiTrangThai={() => {
           loadTasks();
@@ -1001,7 +1035,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
                 ✕
               </button>
             </div>
-            <TaskInput onHoanTat={handleBeIuHoanTat} />
+            <TaskInput onHoanTat={handleBeIuHoanTat} danhMuc={danhMuc} />
           </div>
         </div>
       )}

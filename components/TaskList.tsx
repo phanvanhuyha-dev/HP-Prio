@@ -4,12 +4,13 @@ import NotesView from "./NotesView";
 import { demBuoc, themBuocVaoGhiChu } from "@/lib/checklist";
 import { docLoi, loiThanThien, rung } from "@/lib/client-api";
 import { useTenTroLy } from "./TroLy";
-import { IcSpark, IcHome, IcCoQuan, IcPlay, IcPen, IcLich } from "./icons";
+import { IcSpark, IcHome, IcCoQuan, IcPlay, IcPen, IcLich, IcList } from "./icons";
+import { type DanhMuc } from "@/lib/db";
 
 export type Task = {
   id: string;
   title: string;
-  category: "work" | "personal";
+  category: string;
   deadline: string | null;
   notes: string | null;
   // Chỉ có giá trị với việc nằm trong thùng rác
@@ -63,12 +64,14 @@ const KHOANG_CHAN_MS = 700;
 
 export default function TaskList({
   tasks,
+  danhMuc,
   onDone,
   onDelete,
   onReclassify,
   onFocus
 }: {
   tasks: Task[];
+  danhMuc?: DanhMuc[];
   onDone: (id: string) => void;
   onDelete: (id: string) => void;
   onReclassify: (id: string, patch: ReclassifyPatch) => void;
@@ -100,6 +103,7 @@ export default function TaskList({
         <TaskRow
           key={t.id}
           task={t}
+          danhMuc={danhMuc}
           onDone={danhDauXong}
           onDelete={onDelete}
           onReclassify={onReclassify}
@@ -112,12 +116,14 @@ export default function TaskList({
 
 function TaskRow({
   task,
+  danhMuc,
   onDone,
   onDelete,
   onReclassify,
   onFocus
 }: {
   task: Task;
+  danhMuc?: DanhMuc[];
   onDone: (id: string) => void;
   onDelete: (id: string) => void;
   onReclassify: (id: string, patch: ReclassifyPatch) => void;
@@ -254,9 +260,24 @@ function TaskRow({
             style={{ fontSize: 11, color: "var(--slate)", marginTop: 3, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}
           >
             <span style={{ color: nhom.color }}>{nhom.label}</span>
-            <span title={task.category === "work" ? "Việc cơ quan" : "Việc cá nhân"} style={{ display: "inline-flex" }}>
-              {task.category === "work" ? <IcCoQuan size={12} /> : <IcHome size={12} />}
-            </span>
+            {(() => {
+              const tenDanhMuc =
+                danhMuc?.find((d) => d.id === task.category)?.ten ||
+                (task.category === "work" ? "Công ty" : task.category === "personal" ? "Cá nhân" : task.category);
+              return (
+                <span title={`Phân loại: ${tenDanhMuc}`} style={{ display: "inline-flex", alignItems: "center" }}>
+                  {task.category === "work" ? (
+                    <IcCoQuan size={12} />
+                  ) : task.category === "personal" ? (
+                    <IcHome size={12} />
+                  ) : (
+                    <span style={{ fontSize: 10, color: "var(--slate)", background: "rgba(255, 255, 255, 0.06)", padding: "0 4px", borderRadius: 3 }}>
+                      {tenDanhMuc}
+                    </span>
+                  )}
+                </span>
+              );
+            })()}
             {task.deadline ? (
               <span
                 role="button"

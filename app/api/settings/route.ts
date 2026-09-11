@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { saveTenGoi, getCaiDat, saveIcsUrls, saveTenTroLy } from "@/lib/db";
+import { saveTenGoi, getCaiDat, saveIcsUrls, saveTenTroLy, saveDanhMuc, type DanhMuc } from "@/lib/db";
 import { chuanHoaTenTroLy, TEN_TRO_LY_MAC_DINH } from "@/lib/branding";
 import { tachDanhSachIcs, cheUrlIcs, TOI_DA_LICH } from "@/lib/ics-url";
 import { kiemTenMien, taiIcs, laLoiBaoMat } from "@/lib/tai-ics";
@@ -24,6 +24,7 @@ export async function GET() {
     return NextResponse.json({
       tenGoi: cd.tenGoi,
       tenTroLy: chuanHoaTenTroLy(cd.tenTroLy),
+      danhMuc: cd.danhMuc,
       // Trả về nguyên liên kết để người dùng sửa được, kèm bản che sẵn để
       // giao diện hiện ra màn hình mà không phơi phần bí mật.
       icsUrls: cd.icsUrls,
@@ -55,7 +56,8 @@ export async function PATCH(req: Request) {
   const doiTen = "tenGoi" in body;
   const doiTroLy = "tenTroLy" in body;
   const doiLich = "icsUrls" in body;
-  if (!doiTen && !doiTroLy && !doiLich) {
+  const doiDanhMuc = "danhMuc" in body;
+  if (!doiTen && !doiTroLy && !doiLich && !doiDanhMuc) {
     return NextResponse.json({ error: "Không có gì để cập nhật" }, { status: 400 });
   }
 
@@ -167,6 +169,35 @@ export async function PATCH(req: Request) {
       // Lưu được nhưng chưa tải được: vẫn báo cho người dùng biết thay vì để
       // họ tưởng xong rồi ngồi đợi lịch không bao giờ hiện.
       if (canhBao.length > 0) ketQua.canhBao = canhBao.join(" | ");
+    } catch (err) {
+      return loiJson(describeDbError(err), "settings");
+    }
+  }
+
+  if (doiDanhMuc) {
+    if (!Array.isArray(body.danhMuc) || body.danhMuc.length === 0) {
+      return NextResponse.json({ error: "Phải có ít nhất 1 danh mục công việc" }, { status: 400 });
+    }
+    if (body.danhMuc.length > 15) {
+      return NextResponse.json({ error: "Chỉ được tạo tối đa 15 danh mục" }, { status: 400 });
+    }
+    const hopLe: DanhMuc[] = [];
+    for (const item of body.danhMuc) {
+      if (!item || typeof item !== "object") continue;
+      const id = typeof item.id === "string" ? item.id.trim() : "";
+      const ten = typeof item.ten === "string" ? item.ten.trim().slice(0, 30) : "";
+      if (!id || !ten) {
+        return NextResponse.json({ error: "Tên danh mục không được để trống" }, { status: 400 });
+      }
+      hopLe.push({ id, ten });
+    }
+    if (hopLe.length === 0) {
+      return NextResponse.json({ error: "Danh mục không hợp lệ" }, { status: 400 });
+    }
+    try {
+      const idBiXoa = typeof body.idBiXoa === "string" ? body.idBiXoa : undefined;
+      await saveDanhMuc(session.user.email, hopLe, idBiXoa);
+      ketQua.danhMuc = hopLe;
     } catch (err) {
       return loiJson(describeDbError(err), "settings");
     }
