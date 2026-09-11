@@ -29,6 +29,8 @@ export default function Dashboard({ userName, email }: { userName: string; email
 
   // Bộ lọc và sắp xếp nhanh, chạy ngay trên danh sách đã tải nên không tốn request.
   const [tuKhoa, setTuKhoa] = useState("");
+  const [moTimKiem, setMoTimKiem] = useState(false);
+  const inputTimKiemRef = useRef<HTMLInputElement>(null);
   const [nhan, setNhan] = useState<"tat-ca" | "work" | "personal">("tat-ca");
   const [sapXep, setSapXep] = useState<"uu-tien" | "han-chot" | "moi-nhat">("uu-tien");
 
@@ -411,11 +413,11 @@ export default function Dashboard({ userName, email }: { userName: string; email
     {/* Danh sách dọc đọc thoải mái nhất trong một cột hẹp; 1040px là di sản của
         bố cục ma trận 2x2 cũ, nay thu về 680px. */}
     <main style={{ maxWidth: 680, margin: "0 auto", padding: "24px 16px 210px" }}>
-      <header style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-          <div style={{ minWidth: 0 }}>
+      <header style={{ marginBottom: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             {/* Dòng ngày kiểu "THỨ HAI, 31/08/2026" theo mẫu tham chiếu */}
-            <div className="mono" style={{ fontSize: 11, color: "var(--slate)", letterSpacing: "0.14em", minHeight: 15 }}>
+            <div className="mono" style={{ fontSize: 11, color: "var(--slate)", letterSpacing: "0.14em", minHeight: 15, whiteSpace: "nowrap" }}>
               {ngayHomNay}
             </div>
             {/* Lời chào chỉ để đọc. Đổi tên gọi nằm trong Cài đặt: mỗi năm đổi
@@ -427,77 +429,56 @@ export default function Dashboard({ userName, email }: { userName: string; email
                 letterSpacing: "-0.01em",
                 margin: "4px 0 0",
                 color: "var(--cream)",
-                lineHeight: 1.25
+                lineHeight: 1.25,
+                whiteSpace: "nowrap"
               }}
             >
               Chào {tenGoi || userName.split(" ")[0] || userName}.
             </h1>
           </div>
 
-          {/* Cụm công cụ: Tìm kiếm, Đổi giao diện, Cài đặt */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginTop: 4 }}>
+          {/* Cụm công cụ: Kính lúp tìm kiếm, Đổi giao diện, Cài đặt */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0, marginTop: 4 }}>
             {tab === "homnay" && (
-              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                <span
-                  aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    left: 10,
-                    color: "var(--slate)",
-                    display: "flex",
-                    alignItems: "center",
-                    pointerEvents: "none"
-                  }}
-                >
-                  <IcSearch size={13} />
-                </span>
-                <input
-                  value={tuKhoa}
-                  onChange={(e) => setTuKhoa(e.target.value)}
-                  placeholder="Tìm việc..."
-                  aria-label="Tìm trong tiêu đề và ghi chú"
-                  style={{
-                    width: 140,
-                    maxWidth: "35vw",
-                    background: "var(--field)",
-                    border: `1px solid ${tuKhoa ? "var(--amber)" : "var(--line)"}`,
-                    borderRadius: 999,
-                    padding: "7px 24px 7px 28px",
-                    color: "var(--cream)",
-                    fontSize: 12.5,
-                    fontFamily: "var(--font-body)",
-                    outline: "none",
-                    transition: "border-color 0.2s"
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = "var(--amber)";
-                  }}
-                  onBlur={(e) => {
-                    if (!tuKhoa) e.currentTarget.style.borderColor = "var(--line)";
-                  }}
-                />
-                {tuKhoa && (
-                  <button
-                    type="button"
-                    onClick={() => setTuKhoa("")}
-                    aria-label="Xóa từ khóa tìm kiếm"
+              <button
+                type="button"
+                onClick={() => {
+                  if (moTimKiem) {
+                    setMoTimKiem(false);
+                  } else {
+                    setMoTimKiem(true);
+                    setTimeout(() => inputTimKiemRef.current?.focus(), 80);
+                  }
+                }}
+                className="tap"
+                aria-label={moTimKiem ? "Đóng tìm kiếm" : "Tìm kiếm việc"}
+                title={moTimKiem ? "Đóng tìm kiếm" : "Tìm kiếm việc"}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: moTimKiem || tuKhoa ? "var(--amber)" : "var(--slate)",
+                  padding: "4px 6px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  position: "relative"
+                }}
+              >
+                <IcSearch size={16} />
+                {tuKhoa && !moTimKiem && (
+                  <span
                     style={{
                       position: "absolute",
-                      right: 8,
-                      background: "none",
-                      border: "none",
-                      color: "var(--slate)",
-                      fontSize: 12,
-                      cursor: "pointer",
-                      padding: 0,
-                      display: "flex",
-                      alignItems: "center"
+                      top: 4,
+                      right: 4,
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: "var(--amber)"
                     }}
-                  >
-                    ✕
-                  </button>
+                  />
                 )}
-              </div>
+              </button>
             )}
 
             <button
@@ -505,7 +486,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
               className="tap"
               aria-label={giaoDien === "dark" ? "Chuyển giao diện sáng" : "Chuyển giao diện tối"}
               title={giaoDien === "dark" ? "Chuyển giao diện sáng" : "Chuyển giao diện tối"}
-              style={{ background: "none", border: "none", fontSize: 16, color: "var(--slate)" }}
+              style={{ background: "none", border: "none", fontSize: 16, color: "var(--slate)", padding: "4px 6px" }}
             >
               {giaoDien === "dark" ? <IcSun size={17} /> : <IcMoon size={16} />}
             </button>
@@ -514,7 +495,7 @@ export default function Dashboard({ userName, email }: { userName: string; email
               className="tap"
               aria-label="Cài đặt"
               title="Cài đặt"
-              style={{ background: "none", border: "none", color: "var(--slate)", padding: "0 2px" }}
+              style={{ background: "none", border: "none", color: "var(--slate)", padding: "4px 6px" }}
             >
               <IcCaiDat size={17} />
             </button>
@@ -529,11 +510,11 @@ export default function Dashboard({ userName, email }: { userName: string; email
               alignItems: "center",
               justifyContent: "space-between",
               flexWrap: "wrap",
-              gap: "6px 12px",
+              gap: "4px 8px",
               marginTop: 6
             }}
           >
-            <p style={{ fontSize: 14, color: soQuaHan > 0 ? "var(--coral)" : "var(--slate)", margin: 0 }}>
+            <p style={{ fontSize: 13.5, color: soQuaHan > 0 ? "var(--coral)" : "var(--slate)", margin: 0 }}>
               {soQuaHan > 0
                 ? `Anh có ${soQuaHan} việc quá hạn${soLamNgay > 0 ? ` và ${soLamNgay} việc cần làm ngay` : ""}.`
                 : soLamNgay > 0
@@ -542,10 +523,100 @@ export default function Dashboard({ userName, email }: { userName: string; email
                     ? "Không có việc nào khẩn cấp, anh chủ động được lịch hôm nay."
                     : "Hôm nay chưa có việc nào."}
             </p>
-            <span className="mono" style={{ fontSize: 12, color: "var(--slate)" }}>
+            <span className="mono" style={{ fontSize: 11.5, color: "var(--slate)", whiteSpace: "nowrap" }}>
               {dangLoc ? `${dsHienThi.length}/${tasks.length}` : tasks.length} việc mở
               {dem.done > 0 && <span style={{ color: "var(--teal)" }}> · {dem.done} đã xong</span>}
             </span>
+          </div>
+        )}
+
+        {/* Ô tìm kiếm bung ra rộng rãi khi bấm vào kính lúp */}
+        {tab === "homnay" && (moTimKiem || tuKhoa) && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 10,
+              padding: "2px 0"
+            }}
+          >
+            <div style={{ position: "relative", flex: 1, display: "flex", alignItems: "center" }}>
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: 11,
+                  color: "var(--slate)",
+                  display: "flex",
+                  alignItems: "center",
+                  pointerEvents: "none"
+                }}
+              >
+                <IcSearch size={14} />
+              </span>
+              <input
+                ref={inputTimKiemRef}
+                value={tuKhoa}
+                onChange={(e) => setTuKhoa(e.target.value)}
+                placeholder="Tìm trong tiêu đề và ghi chú..."
+                aria-label="Tìm trong tiêu đề và ghi chú"
+                style={{
+                  width: "100%",
+                  background: "var(--field)",
+                  border: "1px solid var(--amber)",
+                  borderRadius: 10,
+                  padding: "8px 30px 8px 32px",
+                  color: "var(--cream)",
+                  fontSize: 13,
+                  fontFamily: "var(--font-body)",
+                  outline: "none"
+                }}
+              />
+              {tuKhoa && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTuKhoa("");
+                    inputTimKiemRef.current?.focus();
+                  }}
+                  aria-label="Xóa từ khóa tìm kiếm"
+                  style={{
+                    position: "absolute",
+                    right: 8,
+                    background: "none",
+                    border: "none",
+                    color: "var(--slate)",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    padding: 4,
+                    display: "flex",
+                    alignItems: "center"
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setMoTimKiem(false);
+                setTuKhoa("");
+              }}
+              className="tap"
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "var(--slate)",
+                fontSize: 13,
+                padding: "6px 4px",
+                cursor: "pointer",
+                whiteSpace: "nowrap"
+              }}
+            >
+              Đóng
+            </button>
           </div>
         )}
       </header>
