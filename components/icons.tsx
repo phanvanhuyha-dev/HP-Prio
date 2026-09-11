@@ -151,3 +151,29 @@ export const IcCheckTron = ({ size = 16, style }: P) => (
     <path d="M8 12.4l2.7 2.7 5.6-5.8" />
   </svg>
 );
+
+// Mũi tên chuyển bước lên trên
+export const IcArrowUp = ({ size = 14, style }: P) => (
+  <svg {...goc(size, style)}>
+    <path d="M18 15l-6-6-6 6" />
+  </svg>
+);
+
+// Mũi tên chuyển bước xuống dưới
+export const IcArrowDown = ({ size = 14, style }: P) => (
+  <svg {...goc(size, style)}>
+    <path d="M6 9l6 6 6-6" />
+  </svg>
+);
+
+// Tay nắm kéo thả (6 chấm)
+export const IcGrip = ({ size = 14, style }: P) => (
+  <svg {...goc(size, style)} fill="currentColor" stroke="none">
+    <circle cx="8.5" cy="6" r="1.3" />
+    <circle cx="15.5" cy="6" r="1.3" />
+    <circle cx="8.5" cy="12" r="1.3" />
+    <circle cx="15.5" cy="12" r="1.3" />
+    <circle cx="8.5" cy="18" r="1.3" />
+    <circle cx="15.5" cy="18" r="1.3" />
+  </svg>
+);

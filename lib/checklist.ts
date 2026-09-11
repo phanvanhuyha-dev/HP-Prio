@@ -80,3 +80,56 @@ export function themMotBuoc(text: string | null | undefined, noiDung: string): s
   if (!text?.trim()) return dong;
   return text.replace(/\s+$/, "") + "\n" + dong;
 }
+
+// Di chuyển một bước lên trên (đổi chỗ với bước liền trước nó)
+export function diChuyenBuocLen(text: string, viTriDong: number): string {
+  const dongs = text.split("\n");
+  if (!dongs[viTriDong]?.match(DONG_BUOC)) return text;
+
+  let viTriTruoc = -1;
+  for (let i = viTriDong - 1; i >= 0; i--) {
+    if (dongs[i].match(DONG_BUOC)) {
+      viTriTruoc = i;
+      break;
+    }
+  }
+
+  if (viTriTruoc === -1) return text;
+
+  const tam = dongs[viTriDong];
+  dongs[viTriDong] = dongs[viTriTruoc];
+  dongs[viTriTruoc] = tam;
+  return dongs.join("\n");
+}
+
+// Di chuyển một bước xuống dưới (đổi chỗ với bước liền sau nó)
+export function diChuyenBuocXuong(text: string, viTriDong: number): string {
+  const dongs = text.split("\n");
+  if (!dongs[viTriDong]?.match(DONG_BUOC)) return text;
+
+  let viTriSau = -1;
+  for (let i = viTriDong + 1; i < dongs.length; i++) {
+    if (dongs[i].match(DONG_BUOC)) {
+      viTriSau = i;
+      break;
+    }
+  }
+
+  if (viTriSau === -1) return text;
+
+  const tam = dongs[viTriDong];
+  dongs[viTriDong] = dongs[viTriSau];
+  dongs[viTriSau] = tam;
+  return dongs.join("\n");
+}
+
+// Chuyển một bước từ dòng nguồn sang vị trí dòng đích (dùng cho kéo thả)
+export function chuyenViTriBuoc(text: string, viTriDongNguon: number, viTriDongDich: number): string {
+  if (viTriDongNguon === viTriDongDich) return text;
+  const dongs = text.split("\n");
+  if (!dongs[viTriDongNguon]?.match(DONG_BUOC) || !dongs[viTriDongDich]?.match(DONG_BUOC)) return text;
+
+  const [dongKeo] = dongs.splice(viTriDongNguon, 1);
+  dongs.splice(viTriDongDich, 0, dongKeo);
+  return dongs.join("\n");
+}
