@@ -4,9 +4,7 @@ import NotesView from "./NotesView";
 import {
   themBuocVaoGhiChu,
   themMotBuoc,
-  phanTichNotesTongQuat,
-  capNhatVanBanTrongGhiChu,
-  layCacDongBuoc
+  phanTichNotesTongQuat
 } from "@/lib/checklist";
 import { docLoi, loiThanThien, rung } from "@/lib/client-api";
 import { useTenTroLy } from "./TroLy";
@@ -138,10 +136,9 @@ function TaskRow({
   const TEN_TRO_LY = useTenTroLy();
   const nhom = nhomCua(task);
   const overdue = task.deadline ? new Date(task.deadline) < new Date() : false;
-  const { coBuoc, coVanBan, vanBan, tongBuoc, soXong } = phanTichNotesTongQuat(task.notes);
+  const { coBuoc, coVanBan, tongBuoc, soXong } = phanTichNotesTongQuat(task.notes);
   const [moRong, setMoRong] = useState(false);
   const [dangSua, setDangSua] = useState(false);
-  const [nhap, setNhap] = useState("");
   const [dangChia, setDangChia] = useState(false);
   const [loiChia, setLoiChia] = useState<string | null>(null);
   const [suaTen, setSuaTen] = useState(false);
@@ -190,14 +187,7 @@ function TaskRow({
   }
 
   function batDauSuaGhiChu() {
-    setNhap(vanBan);
     setDangSua(true);
-  }
-
-  function luuGhiChu() {
-    const moi = capNhatVanBanTrongGhiChu(task.notes, nhap);
-    onReclassify(task.id, { notes: moi.trim() || null });
-    setDangSua(false);
   }
 
   return (
@@ -573,64 +563,13 @@ function TaskRow({
             </div>
           )}
 
-          {dangSua ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {/* Nếu đã có các bước, vẫn hiển thị các bước phía trên để người dùng tiện theo dõi */}
-              {coBuoc && (
-                <NotesView
-                  text={layCacDongBuoc(task.notes)}
-                  onDoi={(moi) => onReclassify(task.id, { notes: capNhatVanBanTrongGhiChu(moi, nhap) })}
-                  choSua
-                />
-              )}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <span
-                  className="mono"
-                  style={{
-                    fontSize: 10.5,
-                    color: "var(--slate)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    fontWeight: 600
-                  }}
-                >
-                  {coVanBan ? "Ghi chú & liên kết" : "Thêm ghi chú & liên kết"}
-                </span>
-                <textarea
-                  value={nhap}
-                  onChange={(e) => setNhap(e.target.value)}
-                  rows={4}
-                  autoFocus
-                  placeholder="Đường link, tài liệu, mô tả bổ sung..."
-                  style={{
-                    width: "100%",
-                    background: "var(--field)",
-                    border: "1px solid var(--line)",
-                    borderRadius: 8,
-                    padding: "8px 10px",
-                    color: "var(--cream)",
-                    fontSize: 12.5,
-                    lineHeight: 1.5,
-                    fontFamily: "var(--font-body)",
-                    resize: "vertical"
-                  }}
-                />
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button
-                    onClick={luuGhiChu}
-                    style={{ ...nutNho, background: "var(--amber)", color: "var(--navy)", border: "none", fontWeight: 600 }}
-                  >
-                    Lưu ghi chú
-                  </button>
-                  <button onClick={() => setDangSua(false)} style={nutNho}>
-                    Hủy
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <NotesView text={task.notes ?? ""} onDoi={(moi) => onReclassify(task.id, { notes: moi })} choSua />
-          )}
+          <NotesView
+            text={task.notes ?? ""}
+            onDoi={(moi) => onReclassify(task.id, { notes: moi })}
+            choSua
+            dangSuaVanBanMoRong={dangSua}
+            onDangSuaVanBanDoi={setDangSua}
+          />
 
           {loiChia && (
             <p role="alert" style={{ color: "var(--coral)", fontSize: 11.5, margin: 0 }}>

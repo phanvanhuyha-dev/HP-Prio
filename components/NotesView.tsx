@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Linkify from "./Linkify";
 import {
   phanTichGhiChu,
@@ -9,27 +9,31 @@ import {
   themMotBuoc,
   diChuyenBuocLen,
   diChuyenBuocXuong,
-  chuyenViTriBuoc
+  chuyenViTriBuoc,
+  capNhatVanBanTrongGhiChu
 } from "@/lib/checklist";
-import { IcArrowUp, IcArrowDown, IcGrip } from "./icons";
+import { IcArrowUp, IcArrowDown, IcGrip, IcPen } from "./icons";
 import { rung } from "@/lib/client-api";
 
 // Hiển thị ghi chú: dòng "- [ ]" thành ô đánh dấu bấm được, các dòng còn lại
 // là văn bản thuần với đường link bấm được. Vẫn đi qua Linkify nên không có
 // đường nào dựng HTML từ chuỗi người dùng nhập (xem chú thích trong Linkify).
 //
-// Có onDoi thì tick được. Thêm choSua thì từng bước sửa/xóa được tại chỗ:
-// bấm vào chữ để sửa (Enter lưu, Escape hủy, xóa sạch chữ nghĩa là xóa bước),
-// kéo thả (drag & drop) hoặc bấm mũi tên lên/xuống để đổi thứ tự,
-// nút ✕ xóa thẳng, và có nút thêm bước mới ở cuối.
+// Có onDoi thì tick được. Thêm choSua thì:
+// - Từng bước sửa/xóa/đổi thứ tự được tại chỗ
+// - Khối Ghi chú & Liên kết có thể bấm trực tiếp vào để chỉnh sửa ngay tại chỗ
 export default function NotesView({
   text,
   onDoi,
-  choSua = false
+  choSua = false,
+  dangSuaVanBanMoRong,
+  onDangSuaVanBanDoi
 }: {
   text: string;
   onDoi?: (moi: string) => void;
   choSua?: boolean;
+  dangSuaVanBanMoRong?: boolean;
+  onDangSuaVanBanDoi?: (dangSua: boolean) => void;
 }) {
   const dongs = phanTichGhiChu(text);
   const suaDuoc = choSua && Boolean(onDoi);
@@ -37,6 +41,17 @@ export default function NotesView({
   const [nhapDong, setNhapDong] = useState("");
   const [dangThem, setDangThem] = useState(false);
   const [nhapMoi, setNhapMoi] = useState("");
+
+  // Trạng thái sửa trực tiếp phần văn bản ghi chú
+  const [dangSuaVanBanLocal, setDangSuaVanBanLocal] = useState(false);
+  const dangSuaVanBan = dangSuaVanBanMoRong !== undefined ? dangSuaVanBanMoRong : dangSuaVanBanLocal;
+
+  function setDangSuaVanBan(val: boolean) {
+    setDangSuaVanBanLocal(val);
+    onDangSuaVanBanDoi?.(val);
+  }
+
+  const [nhapVanBan, setNhapVanBan] = useState("");
 
   // Trạng thái kéo thả
   const [keoDong, setKeoDong] = useState<number | null>(null);
@@ -73,8 +88,25 @@ export default function NotesView({
     .filter((item): item is { dong: { loai: "van-ban"; noiDung: string }; viTriGoc: number } => item.dong.loai === "van-ban");
 
   const coBuoc = cacBuoc.length > 0;
-  const chuoiVanBan = cacVanBan.map((item) => item.dong.noiDung).join("").trim();
-  const coVanBan = chuoiVanBan.length > 0;
+  const noiDungVanBan = cacVanBan.map((item) => item.dong.noiDung).join("\n").trim();
+  const coVanBan = noiDungVanBan.length > 0;
+
+  useEffect(() => {
+    if (dangSuaVanBan) {
+      setNhapVanBan(noiDungVanBan);
+    }
+  }, [dangSuaVanBan, noiDungVanBan]);
+
+  function batDauSuaVanBan() {
+    setNhapVanBan(noiDungVanBan);
+    setDangSuaVanBan(true);
+    rung(6);
+  }
+
+  function luuSuaVanBan() {
+    setDangSuaVanBan(false);
+    onDoi?.(capNhatVanBanTrongGhiChu(text, nhapVanBan));
+  }
 
   // Lược bỏ dòng trống thừa ở đầu và cuối phần văn bản
   let startIdx = 0;
@@ -90,7 +122,7 @@ export default function NotesView({
   const soXong = cacBuoc.filter((b) => b.dong.xong).length;
   const tongBuoc = cacBuoc.length;
 
-  if (!coBuoc && !coVanBan) {
+  if (!coBuoc && !coVanBan && !dangSuaVanBan) {
     return null;
   }
 
@@ -513,8 +545,8 @@ export default function NotesView({
         </div>
       )}
 
-      {/* 2. KHỐI GHI CHÚ & LIÊN KẾT - chỉ hiện khi có văn bản ghi chú */}
-      {coVanBan && (
+      {/* 2. KHỐI GHI CHÚ & LIÊN KẾT - hiện khi có văn bản hoặc đang trong chế độ sửa */}
+      {(coVanBan || dangSuaVanBan) && (
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span
@@ -529,36 +561,181 @@ export default function NotesView({
             >
               Ghi chú & liên kết
             </span>
-          </div>
 
-          <div
-            style={{
-              background: "var(--field)",
-              borderRadius: 8,
-              padding: "8px 10px",
-              maxHeight: 180,
-              overflowY: "auto",
-              fontSize: 12.5,
-              lineHeight: 1.55,
-              color: "var(--cream)",
-              display: "flex",
-              flexDirection: "column",
-              gap: 3
-            }}
-          >
-            {cacVanBanHienThi.map(({ dong: d, viTriGoc: i }) => (
-              <div
-                key={i}
+            {suaDuoc && !dangSuaVanBan && (
+              <button
+                type="button"
+                onClick={batDauSuaVanBan}
+                title="Bấm để chỉnh sửa ghi chú"
+                aria-label="Chỉnh sửa ghi chú và liên kết"
                 style={{
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  minHeight: d.noiDung ? undefined : 8
+                  background: "none",
+                  border: "none",
+                  color: "var(--slate)",
+                  fontSize: 11,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                  transition: "all 0.15s ease"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "var(--cream)";
+                  e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "var(--slate)";
+                  e.currentTarget.style.background = "none";
                 }}
               >
-                <Linkify text={d.noiDung} />
-              </div>
-            ))}
+                <IcPen size={11} />
+                <span>Sửa trực tiếp</span>
+              </button>
+            )}
           </div>
+
+          {dangSuaVanBan ? (
+            <div
+              style={{
+                background: "var(--field)",
+                borderRadius: 8,
+                padding: "8px 10px",
+                border: "1px solid var(--amber)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8
+              }}
+            >
+              <textarea
+                value={nhapVanBan}
+                autoFocus
+                rows={Math.min(12, Math.max(5, nhapVanBan.split("\n").length + 1))}
+                onChange={(e) => setNhapVanBan(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                    e.preventDefault();
+                    luuSuaVanBan();
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setDangSuaVanBan(false);
+                  }
+                }}
+                placeholder="Nhập ghi chú, tài liệu, đường link liên kết..."
+                style={{
+                  width: "100%",
+                  background: "var(--navy)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 6,
+                  padding: "8px 10px",
+                  color: "var(--cream)",
+                  fontSize: 12.5,
+                  lineHeight: 1.55,
+                  fontFamily: "var(--font-body)",
+                  resize: "vertical",
+                  boxSizing: "border-box"
+                }}
+              />
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 6
+                }}
+              >
+                <span style={{ fontSize: 11, color: "var(--slate)" }}>
+                  Phím tắt: <kbd style={{ background: "rgba(255, 255, 255, 0.08)", padding: "1px 4px", borderRadius: 3 }}>Ctrl+Enter</kbd> lưu, <kbd style={{ background: "rgba(255, 255, 255, 0.08)", padding: "1px 4px", borderRadius: 3 }}>Esc</kbd> hủy
+                </span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={luuSuaVanBan}
+                    style={{
+                      background: "var(--amber)",
+                      color: "var(--navy)",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "5px 14px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    Lưu
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDangSuaVanBan(false)}
+                    style={{
+                      background: "transparent",
+                      color: "var(--slate)",
+                      border: "1px solid var(--line)",
+                      borderRadius: 6,
+                      padding: "5px 12px",
+                      fontSize: 12,
+                      cursor: "pointer"
+                    }}
+                  >
+                    Hủy
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              onClick={(e) => {
+                if (!suaDuoc) return;
+                // Nếu click trúng thẻ liên kết <a> hoặc nút bấm, không kích hoạt sửa trực tiếp
+                const target = e.target as HTMLElement | null;
+                if (target?.closest("a") || target?.closest("button")) return;
+                batDauSuaVanBan();
+              }}
+              title={suaDuoc ? "Bấm vào để chỉnh sửa trực tiếp" : undefined}
+              style={{
+                background: "var(--field)",
+                borderRadius: 8,
+                padding: "8px 10px",
+                maxHeight: 220,
+                overflowY: "auto",
+                fontSize: 12.5,
+                lineHeight: 1.55,
+                color: "var(--cream)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 3,
+                cursor: suaDuoc ? "text" : "default",
+                border: "1px solid transparent",
+                transition: "border-color 0.15s ease"
+              }}
+              onMouseEnter={(e) => {
+                if (suaDuoc) {
+                  e.currentTarget.style.borderColor = "var(--line)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (suaDuoc) {
+                  e.currentTarget.style.borderColor = "transparent";
+                }
+              }}
+            >
+              {cacVanBanHienThi.map(({ dong: d, viTriGoc: i }) => (
+                <div
+                  key={i}
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    minHeight: d.noiDung ? undefined : 8
+                  }}
+                >
+                  <Linkify text={d.noiDung} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
