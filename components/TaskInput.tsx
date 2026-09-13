@@ -2,10 +2,73 @@
 import { useEffect, useRef, useState, useId, CSSProperties } from "react";
 import { docLoi, loiThanThien, ngayVN } from "@/lib/client-api";
 import { useTenTroLy } from "./TroLy";
-import { IcSpark, IcMic, IcStop } from "./icons";
+import { IcSpark, IcMic, IcStop, IcArrowUp, IcArrowDown } from "./icons";
 import { doanViecTuCau } from "@/lib/ngay-viet";
 
 import { type DanhMuc, DANH_MUC_MAC_DINH } from "@/lib/db";
+
+export type BuocThucHien = {
+  xong: boolean;
+  noiDung: string;
+};
+
+// Phân tách câu nhập ban đầu thành các bước (nếu có dấu gạch đầu dòng/đánh số)
+// và phần ghi chú phụ còn lại.
+export function tachGhiChuVaBuoc(
+  original: string,
+  tieuDe: string
+): { ghiChuPhu: string; cacBuoc: BuocThucHien[] } {
+  const dongs = original.split("\n").map((d) => d.trimEnd());
+  const cacBuoc: BuocThucHien[] = [];
+  const ghiChuDongs: string[] = [];
+
+  const chuanHoa = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+  const tieuDeChuan = chuanHoa(tieuDe);
+
+  const REGEX_CHECKLIST = /^(\s*)- \[( |x|X)\] ?(.*)$/;
+  const REGEX_DAU_DONG = /^(\s*)(?:[-*+]|\d+[.)\-])\s+(.+)$/;
+
+  let daBoQuaTieuDe = false;
+
+  for (let i = 0; i < dongs.length; i++) {
+    const dong = dongs[i];
+    const dongTrim = dong.trim();
+    if (!dongTrim) {
+      if (ghiChuDongs.length > 0) ghiChuDongs.push("");
+      continue;
+    }
+
+    if (!daBoQuaTieuDe && chuanHoa(dongTrim) === tieuDeChuan) {
+      daBoQuaTieuDe = true;
+      continue;
+    }
+
+    const mChecklist = dong.match(REGEX_CHECKLIST);
+    if (mChecklist) {
+      const noiDung = mChecklist[3].trim();
+      if (noiDung) {
+        cacBuoc.push({ xong: mChecklist[2].toLowerCase() === "x", noiDung });
+      }
+      continue;
+    }
+
+    const mDauDong = dong.match(REGEX_DAU_DONG);
+    if (mDauDong) {
+      const noiDung = mDauDong[2].trim();
+      if (noiDung) {
+        cacBuoc.push({ xong: false, noiDung });
+      }
+      continue;
+    }
+
+    ghiChuDongs.push(dong);
+  }
+
+  return {
+    ghiChuPhu: ghiChuDongs.join("\n").trim(),
+    cacBuoc
+  };
+}
 
 type ParsedTask = {
   title: string;
@@ -580,10 +643,18 @@ function ReviewCard({
   onCancel: () => void;
 }) {
   const TEN_TRO_LY = useTenTroLy();
+  const [init] = useState(() => tachGhiChuVaBuoc(original, suggestion.title));
   const [draft, setDraft] = useState<DraftTask>(() => ({
     ...suggestion,
-    notes: ghiChuMacDinh(original, suggestion.title)
+    notes: ""
   }));
+  const [cacBuoc, setCacBuoc] = useState<BuocThucHien[]>(init.cacBuoc);
+  const [ghiChuPhu, setGhiChuPhu] = useState(init.ghiChuPhu);
+  const [nhapBuocMoi, setNhapBuocMoi] = useState("");
+  const [dangChiaBuoc, setDangChiaBuoc] = useState(false);
+  const [loiChiaBuoc, setLoiChiaBuoc] = useState<string | null>(null);
+  const inputThemBuocRef = useRef<HTMLInputElement>(null);
+
   const [xemDayDu, setXemDayDu] = useState(false);
   const id = useId();
 
@@ -591,6 +662,82 @@ function ReviewCard({
   const quaDai = original.trim().length > NGAN;
   const trichDan = xemDayDu || !quaDai ? original.trim() : original.trim().slice(0, NGAN) + "…";
   const daQua = draft.deadline ? new Date(draft.deadline).getTime() < Date.now() : false;
+
+  function themBuoc() {
+    const nd = nhapBuocMoi.trim();
+    if (!nd) return;
+    setCacBuoc((prev) => [...prev, { xong: false, noiDung: nd }]);
+    setNhapBuocMoi("");
+    inputThemBuocRef.current?.focus();
+  }
+
+  function suaNoiDungBuoc(idx: number, nd: string) {
+    setCacBuoc((prev) => prev.map((b, i) => (i === idx ? { ...b, noiDung: nd } : b)));
+  }
+
+  function toggleBuoc(idx: number) {
+    setCacBuoc((prev) => prev.map((b, i) => (i === idx ? { ...b, xong: !b.xong } : b)));
+  }
+
+  function xoaBuoc(idx: number) {
+    setCacBuoc((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function diChuyenBuoc(tuIdx: number, sangIdx: number) {
+    if (sangIdx < 0 || sangIdx >= cacBuoc.length) return;
+    setCacBuoc((prev) => {
+      const copy = [...prev];
+      const [item] = copy.splice(tuIdx, 1);
+      copy.splice(sangIdx, 0, item);
+      return copy;
+    });
+  }
+
+  async function chiaBuocAI() {
+    if (dangChiaBuoc || !draft.title.trim()) return;
+    setDangChiaBuoc(true);
+    setLoiChiaBuoc(null);
+    try {
+      const res = await fetch("/api/tasks/breakdown", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: draft.title.trim(),
+          deadline: draft.deadline,
+          notes: ghiChuPhu
+        })
+      });
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (!res.ok) throw new Error(await docLoi(res));
+      const data = await res.json();
+      const stepsMoi: string[] = data.steps ?? [];
+      if (stepsMoi.length > 0) {
+        setCacBuoc((prev) => [
+          ...prev,
+          ...stepsMoi.map((s) => ({ xong: false, noiDung: s }))
+        ]);
+      }
+    } catch (e: any) {
+      setLoiChiaBuoc(loiThanThien(e));
+    } finally {
+      setDangChiaBuoc(false);
+    }
+  }
+
+  function handleXacNhan() {
+    const checklist = cacBuoc
+      .filter((b) => b.noiDung.trim())
+      .map((b) => `- [${b.xong ? "x" : " "}] ${b.noiDung.trim()}`)
+      .join("\n");
+    const notesFinal = [ghiChuPhu.trim(), checklist].filter(Boolean).join("\n\n");
+    onConfirm({
+      ...draft,
+      notes: notesFinal
+    });
+  }
 
   return (
     <div style={{ background: "var(--navy-2)", border: "1px solid var(--amber)", borderRadius: 16, padding: 20 }}>
@@ -683,22 +830,215 @@ function ReviewCard({
         </div>
       </div>
 
-      <label htmlFor={`${id}-notes`} style={fieldLabel}>
-        Ghi chú, đường link, việc cần làm
-        {draft.notes && (
+      {/* Khu vực tạo và quản lý từng bước thực hiện */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, marginBottom: 6 }}>
+        <label htmlFor={`${id}-buoc-moi`} style={{ ...fieldLabel, margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+          Các bước thực hiện
+          {cacBuoc.length > 0 && (
+            <span style={{ color: "var(--teal)", textTransform: "none", letterSpacing: 0, fontWeight: 600 }}>
+              ({cacBuoc.length} bước)
+            </span>
+          )}
+        </label>
+        <button
+          type="button"
+          onClick={chiaBuocAI}
+          disabled={dangChiaBuoc || !draft.title.trim()}
+          title={`Nhờ ${TEN_TRO_LY} gợi ý chia việc thành các bước`}
+          style={{
+            background: "transparent",
+            border: "1px solid var(--amber)",
+            borderRadius: 6,
+            color: "var(--amber)",
+            fontSize: 11.5,
+            padding: "4px 9px",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            opacity: dangChiaBuoc || !draft.title.trim() ? 0.5 : 1
+          }}
+        >
+          {dangChiaBuoc ? <span className="spinner" aria-hidden="true" style={{ width: 11, height: 11 }} /> : <IcSpark size={11} />}
+          {dangChiaBuoc ? "Đang chia…" : "Gợi ý bước bằng AI"}
+        </button>
+      </div>
+
+      {loiChiaBuoc && (
+        <p role="alert" style={{ color: "var(--coral)", fontSize: 12, margin: "0 0 6px" }}>
+          {loiChiaBuoc}
+        </p>
+      )}
+
+      {cacBuoc.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8, maxHeight: 220, overflowY: "auto" }}>
+          {cacBuoc.map((b, idx) => (
+            <div
+              key={idx}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                background: "var(--field)",
+                border: "1px solid var(--line)",
+                borderRadius: 8,
+                padding: "6px 8px"
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={b.xong}
+                onChange={() => toggleBuoc(idx)}
+                aria-label={`Đánh dấu bước ${idx + 1}`}
+                style={{
+                  accentColor: "var(--teal)",
+                  width: 15,
+                  height: 15,
+                  cursor: "pointer",
+                  flexShrink: 0
+                }}
+              />
+              <input
+                value={b.noiDung}
+                onChange={(e) => suaNoiDungBuoc(idx, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    inputThemBuocRef.current?.focus();
+                  }
+                }}
+                placeholder={`Bước ${idx + 1}...`}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  background: "transparent",
+                  border: "none",
+                  color: b.xong ? "var(--slate)" : "var(--cream)",
+                  textDecoration: b.xong ? "line-through" : "none",
+                  fontSize: 13,
+                  fontFamily: "var(--font-body)",
+                  outline: "none"
+                }}
+              />
+              <button
+                type="button"
+                disabled={idx === 0}
+                onClick={() => diChuyenBuoc(idx, idx - 1)}
+                title={idx === 0 ? "Đã ở vị trí đầu" : "Chuyển lên"}
+                aria-label={`Chuyển bước ${idx + 1} lên`}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--slate)",
+                  cursor: idx === 0 ? "not-allowed" : "pointer",
+                  opacity: idx === 0 ? 0.25 : 0.75,
+                  padding: "3px 4px",
+                  display: "inline-flex"
+                }}
+              >
+                <IcArrowUp size={13} />
+              </button>
+              <button
+                type="button"
+                disabled={idx === cacBuoc.length - 1}
+                onClick={() => diChuyenBuoc(idx, idx + 1)}
+                title={idx === cacBuoc.length - 1 ? "Đã ở vị trí cuối" : "Chuyển xuống"}
+                aria-label={`Chuyển bước ${idx + 1} xuống`}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--slate)",
+                  cursor: idx === cacBuoc.length - 1 ? "not-allowed" : "pointer",
+                  opacity: idx === cacBuoc.length - 1 ? 0.25 : 0.75,
+                  padding: "3px 4px",
+                  display: "inline-flex"
+                }}
+              >
+                <IcArrowDown size={13} />
+              </button>
+              <button
+                type="button"
+                onClick={() => xoaBuoc(idx)}
+                title="Xóa bước này"
+                aria-label={`Xóa bước: ${b.noiDung || idx + 1}`}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--slate)",
+                  cursor: "pointer",
+                  padding: "3px 6px",
+                  fontSize: 13,
+                  lineHeight: 1
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--coral)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--slate)")}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Ô nhập nhanh từng bước */}
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input
+          id={`${id}-buoc-moi`}
+          ref={inputThemBuocRef}
+          value={nhapBuocMoi}
+          onChange={(e) => setNhapBuocMoi(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              themBuoc();
+            }
+          }}
+          placeholder="Thêm bước cần làm... (nhấn Enter để thêm)"
+          style={{
+            ...inputStyle,
+            fontSize: 13,
+            padding: "8px 10px"
+          }}
+        />
+        <button
+          type="button"
+          onClick={themBuoc}
+          disabled={!nhapBuocMoi.trim()}
+          style={{
+            background: nhapBuocMoi.trim() ? "var(--amber)" : "transparent",
+            color: nhapBuocMoi.trim() ? "var(--navy)" : "var(--slate)",
+            border: `1px solid ${nhapBuocMoi.trim() ? "var(--amber)" : "var(--line)"}`,
+            borderRadius: 8,
+            padding: "8px 14px",
+            fontSize: 13,
+            fontWeight: 600,
+            minHeight: 38,
+            cursor: nhapBuocMoi.trim() ? "pointer" : "default",
+            flexShrink: 0,
+            whiteSpace: "nowrap"
+          }}
+        >
+          + Thêm bước
+        </button>
+      </div>
+
+      {/* Ghi chú phụ, đường link */}
+      <label htmlFor={`${id}-notes`} style={{ ...fieldLabel, marginTop: 14 }}>
+        Ghi chú thêm, đường link
+        {ghiChuPhu && (
           <span style={{ color: "var(--slate)", textTransform: "none", letterSpacing: 0 }}>
             {" "}
-            · {draft.notes.length} ký tự
+            · {ghiChuPhu.length} ký tự
           </span>
         )}
       </label>
       <textarea
         id={`${id}-notes`}
-        value={draft.notes}
-        onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-        rows={5}
-        placeholder="Dán đường link tài liệu, ghi các bước cần làm, người liên quan..."
-        style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+        value={ghiChuPhu}
+        onChange={(e) => setGhiChuPhu(e.target.value)}
+        rows={3}
+        placeholder="Dán đường link tài liệu, người liên quan, ghi chú thêm..."
+        style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5, fontSize: 13 }}
       />
 
       <fieldset style={{ border: "none", padding: 0, margin: "14px 0" }}>
@@ -727,7 +1067,7 @@ function ReviewCard({
           Hủy
         </button>
         <button
-          onClick={() => onConfirm(draft)}
+          onClick={handleXacNhan}
           disabled={saving}
           style={{ ...primaryBtn, flex: 2, opacity: saving ? 0.6 : 1 }}
         >
