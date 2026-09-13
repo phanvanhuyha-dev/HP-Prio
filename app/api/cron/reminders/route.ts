@@ -47,7 +47,7 @@ export async function GET(req: Request) {
   }
 
   if (!isPushConfigured()) {
-    console.error("Thiếu khóa VAPID — không gửi được thông báo.");
+    console.error("Thiếu khóa VAPID, không gửi được thông báo.");
     return NextResponse.json({ error: "push chưa được cấu hình" }, { status: 500 });
   }
 

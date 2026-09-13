@@ -378,11 +378,6 @@ export default function FocusMode({
           {/* Các bước: tick được ngay trong lúc tập trung */}
           {task.notes ? (
             <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.6, color: "var(--cream)" }}>
-              {buoc.tong > 0 && (
-                <div className="mono" style={{ fontSize: 11, color: buoc.xong === buoc.tong ? "var(--teal)" : "var(--slate)", marginBottom: 6 }}>
-                  {buoc.xong}/{buoc.tong} bước
-                </div>
-              )}
               <NotesView text={task.notes} onDoi={(moi) => onDoiGhiChu(task.id, moi)} choSua />
             </div>
           ) : buocDeXuat === null ? (

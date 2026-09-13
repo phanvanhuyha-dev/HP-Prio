@@ -1,7 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import NotesView from "./NotesView";
-import { demBuoc, themBuocVaoGhiChu } from "@/lib/checklist";
+import {
+  themBuocVaoGhiChu,
+  themMotBuoc,
+  phanTichNotesTongQuat,
+  capNhatVanBanTrongGhiChu,
+  layCacDongBuoc
+} from "@/lib/checklist";
 import { docLoi, loiThanThien, rung } from "@/lib/client-api";
 import { useTenTroLy } from "./TroLy";
 import { IcSpark, IcHome, IcCoQuan, IcPlay, IcPen, IcLich, IcList } from "./icons";
@@ -132,7 +138,7 @@ function TaskRow({
   const TEN_TRO_LY = useTenTroLy();
   const nhom = nhomCua(task);
   const overdue = task.deadline ? new Date(task.deadline) < new Date() : false;
-  const buoc = demBuoc(task.notes);
+  const { coBuoc, coVanBan, vanBan, tongBuoc, soXong } = phanTichNotesTongQuat(task.notes);
   const [moRong, setMoRong] = useState(false);
   const [dangSua, setDangSua] = useState(false);
   const [nhap, setNhap] = useState("");
@@ -159,8 +165,8 @@ function TaskRow({
     setSuaTen(false);
   }
 
-  // Nhờ AI chia việc thành các bước. Kết quả KHÔNG lưu thẳng: đổ vào ô sửa
-  // ghi chú để duyệt rồi mới lưu, đúng nguyên tắc "AI đề xuất, anh duyệt".
+  // Nhờ AI chia việc thành các bước. Kết quả được nối trực tiếp vào danh sách
+  // bước và hiển thị ngay để người dùng chỉnh sửa, đổi thứ tự hoặc tick xong.
   async function chiaBuoc() {
     if (dangChia) return;
     setDangChia(true);
@@ -173,8 +179,9 @@ function TaskRow({
       }
       if (!res.ok) throw new Error(await docLoi(res));
       const data = await res.json();
-      setNhap(themBuocVaoGhiChu(task.notes, data.steps ?? []));
-      setDangSua(true);
+      const moi = themBuocVaoGhiChu(task.notes, data.steps ?? []);
+      onReclassify(task.id, { notes: moi });
+      rung(10);
     } catch (e: any) {
       setLoiChia(loiThanThien(e));
     } finally {
@@ -182,8 +189,14 @@ function TaskRow({
     }
   }
 
+  function batDauSuaGhiChu() {
+    setNhap(vanBan);
+    setDangSua(true);
+  }
+
   function luuGhiChu() {
-    onReclassify(task.id, { notes: nhap.trim() || null });
+    const moi = capNhatVanBanTrongGhiChu(task.notes, nhap);
+    onReclassify(task.id, { notes: moi.trim() || null });
     setDangSua(false);
   }
 
@@ -335,9 +348,9 @@ function TaskRow({
                 + Hạn chót
               </span>
             ) : null}
-            {buoc.tong > 0 && (
-              <span style={{ color: buoc.xong === buoc.tong ? "var(--teal)" : "var(--slate)" }}>
-                ✓ {buoc.xong}/{buoc.tong}
+            {tongBuoc > 0 && (
+              <span style={{ color: soXong === tongBuoc ? "var(--teal)" : "var(--slate)" }}>
+                ✓ {soXong}/{tongBuoc}
               </span>
             )}
             <span aria-hidden="true">{moRong ? "▴" : "▾"}</span>
@@ -561,55 +574,62 @@ function TaskRow({
           )}
 
           {dangSua ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <textarea
-                value={nhap}
-                onChange={(e) => setNhap(e.target.value)}
-                rows={7}
-                autoFocus
-                placeholder="Đường link, tài liệu, các bước cần làm (dòng bắt đầu bằng - [ ] thành ô đánh dấu)..."
-                style={{
-                  width: "100%",
-                  background: "var(--field)",
-                  border: "1px solid var(--line)",
-                  borderRadius: 8,
-                  padding: "8px 10px",
-                  color: "var(--cream)",
-                  fontSize: 12.5,
-                  lineHeight: 1.5,
-                  fontFamily: "var(--font-body)",
-                  resize: "vertical"
-                }}
-              />
-              <div style={{ display: "flex", gap: 6 }}>
-                <button
-                  onClick={luuGhiChu}
-                  style={{ ...nutNho, background: "var(--amber)", color: "var(--navy)", border: "none", fontWeight: 600 }}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* Nếu đã có các bước, vẫn hiển thị các bước phía trên để người dùng tiện theo dõi */}
+              {coBuoc && (
+                <NotesView
+                  text={layCacDongBuoc(task.notes)}
+                  onDoi={(moi) => onReclassify(task.id, { notes: capNhatVanBanTrongGhiChu(moi, nhap) })}
+                  choSua
+                />
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span
+                  className="mono"
+                  style={{
+                    fontSize: 10.5,
+                    color: "var(--slate)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    fontWeight: 600
+                  }}
                 >
-                  Lưu
-                </button>
-                <button onClick={() => setDangSua(false)} style={nutNho}>
-                  Hủy
-                </button>
+                  {coVanBan ? "Ghi chú & liên kết" : "Thêm ghi chú & liên kết"}
+                </span>
+                <textarea
+                  value={nhap}
+                  onChange={(e) => setNhap(e.target.value)}
+                  rows={4}
+                  autoFocus
+                  placeholder="Đường link, tài liệu, mô tả bổ sung..."
+                  style={{
+                    width: "100%",
+                    background: "var(--field)",
+                    border: "1px solid var(--line)",
+                    borderRadius: 8,
+                    padding: "8px 10px",
+                    color: "var(--cream)",
+                    fontSize: 12.5,
+                    lineHeight: 1.5,
+                    fontFamily: "var(--font-body)",
+                    resize: "vertical"
+                  }}
+                />
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={luuGhiChu}
+                    style={{ ...nutNho, background: "var(--amber)", color: "var(--navy)", border: "none", fontWeight: 600 }}
+                  >
+                    Lưu ghi chú
+                  </button>
+                  <button onClick={() => setDangSua(false)} style={nutNho}>
+                    Hủy
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
-            task.notes && (
-              <div
-                style={{
-                  fontSize: 12.5,
-                  lineHeight: 1.55,
-                  color: "var(--slate)",
-                  background: "var(--field)",
-                  borderRadius: 8,
-                  padding: "8px 10px",
-                  maxHeight: 280,
-                  overflowY: "auto"
-                }}
-              >
-                <NotesView text={task.notes} onDoi={(moi) => onReclassify(task.id, { notes: moi })} choSua />
-              </div>
-            )
+            <NotesView text={task.notes ?? ""} onDoi={(moi) => onReclassify(task.id, { notes: moi })} choSua />
           )}
 
           {loiChia && (
@@ -672,16 +692,25 @@ function TaskRow({
                 {dangChia ? "Đang chia…" : "Chia bước"}
               </button>
 
+              {!coBuoc && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onReclassify(task.id, { notes: themMotBuoc(task.notes, "Bước 1") });
+                    rung(8);
+                  }}
+                  style={nutNho}
+                  title="Tự thêm các bước thực hiện cho việc này"
+                >
+                  + Thêm bước
+                </button>
+              )}
+
               <button
-                onClick={() => {
-                  // Lấy bản MỚI NHẤT lúc mở: người dùng vừa đánh dấu checklist
-                  // thì notes đã đổi từ bên ngoài, không dùng state cũ.
-                  setNhap(task.notes ?? "");
-                  setDangSua(true);
-                }}
+                onClick={batDauSuaGhiChu}
                 style={nutNho}
               >
-                {task.notes ? "Sửa ghi chú" : "+ Ghi chú"}
+                {coVanBan ? "Sửa ghi chú" : "+ Ghi chú"}
               </button>
 
               <button

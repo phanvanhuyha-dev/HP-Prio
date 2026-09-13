@@ -31,6 +31,51 @@ export function demBuoc(text: string | null | undefined): { tong: number; xong: 
   return { tong, xong };
 }
 
+// Phân tích ghi chú xem có các bước (checklist) hay văn bản thường (link, mô tả),
+// giúp giao diện tách bạch hai phần và ẩn phần không có thông tin.
+export function phanTichNotesTongQuat(text: string | null | undefined): {
+  coBuoc: boolean;
+  coVanBan: boolean;
+  vanBan: string;
+  tongBuoc: number;
+  soXong: number;
+} {
+  if (!text || !text.trim()) {
+    return { coBuoc: false, coVanBan: false, vanBan: "", tongBuoc: 0, soXong: 0 };
+  }
+  const dongs = phanTichGhiChu(text);
+  const buocs = dongs.filter((d) => d.loai === "buoc");
+  const vanBanDongs = dongs.filter((d) => d.loai === "van-ban").map((d) => d.noiDung);
+  const vanBan = vanBanDongs.join("\n").trim();
+  const soXong = buocs.filter((b) => b.loai === "buoc" && b.xong).length;
+
+  return {
+    coBuoc: buocs.length > 0,
+    coVanBan: vanBan.length > 0,
+    vanBan,
+    tongBuoc: buocs.length,
+    soXong
+  };
+}
+
+// Cập nhật phần văn bản thường (link, mô tả) trong ghi chú mà giữ nguyên các bước thực hiện.
+export function capNhatVanBanTrongGhiChu(text: string | null | undefined, vanBanMoi: string): string {
+  const buocDongs = (text ?? "").split("\n").filter((d) => d.match(DONG_BUOC));
+  const vb = vanBanMoi.trim();
+  if (buocDongs.length === 0) return vb;
+  if (!vb) return buocDongs.join("\n");
+  return `${vb}\n\n${buocDongs.join("\n")}`;
+}
+
+// Lấy riêng các dòng checklist để hiển thị danh sách bước
+export function layCacDongBuoc(text: string | null | undefined): string {
+  if (!text) return "";
+  return text
+    .split("\n")
+    .filter((d) => d.match(DONG_BUOC))
+    .join("\n");
+}
+
 // Đảo trạng thái bước ở dòng thứ viTriDong (chỉ số dòng trong toàn bộ ghi chú,
 // KHÔNG phải chỉ số bước). Dùng chỉ số dòng để hai bước trùng nội dung không
 // bị đảo nhầm lẫn nhau.
